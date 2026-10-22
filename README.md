@@ -10,6 +10,8 @@ A locally runnable, deterministic testbed for an external observability / alert-
 LMS health check / scrape fails and all three integrations independently report target failures.
 Start `lms` again and the jobs recover on their next run without being restarted.
 
+The full build specification is in [docs/requirements/README.md](docs/requirements/README.md).
+
 > **Not production-hardened.** Synthetic data only, development credentials, a shared static API
 > token, ports bound to `127.0.0.1`. Do not expose this to a network.
 
@@ -199,7 +201,7 @@ app-b-lms/                     LMS: FastAPI app, SQL migrations, bulk upsert
 integrations/                  one worker image, run as three services via INTEGRATION=
 tests/unit, tests/integration  pytest suites
 scripts/                       up, status, outage, recovery, update, reset, run-tests
-docs/                          API contract, metric/log catalogue, suggested rules
+docs/                          API contract, metric/log catalogue, suggested rules, requirements
 ```
 
 ## Design decisions
