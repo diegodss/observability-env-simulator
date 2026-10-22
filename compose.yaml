@@ -1,0 +1,117 @@
+name: education-integration-poc
+
+# Every value has a working default, so `docker compose up --build -d` needs no
+# .env file. Copy .env.example to .env to override anything.
+
+x-sync-worker: &sync-worker
+  build: ./integrations
+  image: education-integration-poc/sync-worker:local
+  restart: unless-stopped
+  depends_on:
+    sis:
+      condition: service_healthy
+    # No dependency on lms: workers must start and keep running while it is down.
+  stop_grace_period: 10s
+
+x-sync-env: &sync-env
+  SIS_BASE_URL: ${SIS_BASE_URL:-http://sis:8000}
+  LMS_BASE_URL: ${LMS_BASE_URL:-http://lms:8000}
+  API_TOKEN: ${API_TOKEN:-dev-poc-token}
+  SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-30}
+  HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-5}
+  HTTP_MAX_RETRIES: ${HTTP_MAX_RETRIES:-1}
+  HTTP_RETRY_BACKOFF_SECONDS: ${HTTP_RETRY_BACKOFF_SECONDS:-1}
+  SIS_STARTUP_WAIT_SECONDS: ${SIS_STARTUP_WAIT_SECONDS:-60}
+  METRICS_PORT: "9100"
+  PROMETHEUS_DISABLE_CREATED_SERIES: "true"
+
+services:
+  sis-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SIS_DB_NAME:-sis}
+      POSTGRES_USER: ${SIS_DB_USER:-sis}
+      POSTGRES_PASSWORD: ${SIS_DB_PASSWORD:-sis-dev-password}
+    volumes:
+      - sis-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  lms-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${LMS_DB_NAME:-lms}
+      POSTGRES_USER: ${LMS_DB_USER:-lms}
+      POSTGRES_PASSWORD: ${LMS_DB_PASSWORD:-lms-dev-password}
+    volumes:
+      - lms-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  sis:
+    build: ./app-a-sis
+    image: education-integration-poc/sis:local
+    restart: unless-stopped
+    depends_on:
+      sis-db:
+        condition: service_healthy
+    environment:
+      APP_NAME: sis
+      DATABASE_URL: postgresql://${SIS_DB_USER:-sis}:${SIS_DB_PASSWORD:-sis-dev-password}@sis-db:5432/${SIS_DB_NAME:-sis}
+      API_TOKEN: ${API_TOKEN:-dev-poc-token}
+      PROMETHEUS_DISABLE_CREATED_SERIES: "true"
+    ports:
+      - "127.0.0.1:${SIS_HOST_PORT:-8001}:8000"
+
+  lms:
+    build: ./app-b-lms
+    image: education-integration-poc/lms:local
+    # unless-stopped: recovers from crashes, but `docker compose stop lms`
+    # keeps it down until `docker compose start lms`.
+    restart: unless-stopped
+    depends_on:
+      lms-db:
+        condition: service_healthy
+    environment:
+      APP_NAME: lms
+      DATABASE_URL: postgresql://${LMS_DB_USER:-lms}:${LMS_DB_PASSWORD:-lms-dev-password}@lms-db:5432/${LMS_DB_NAME:-lms}
+      API_TOKEN: ${API_TOKEN:-dev-poc-token}
+      PROMETHEUS_DISABLE_CREATED_SERIES: "true"
+    ports:
+      - "127.0.0.1:${LMS_HOST_PORT:-8002}:8000"
+
+  sync-students:
+    <<: *sync-worker
+    environment:
+      <<: *sync-env
+      INTEGRATION: students
+    ports:
+      - "127.0.0.1:${SYNC_STUDENTS_METRICS_PORT:-9101}:9100"
+
+  sync-staff:
+    <<: *sync-worker
+    environment:
+      <<: *sync-env
+      INTEGRATION: staff
+    ports:
+      - "127.0.0.1:${SYNC_STAFF_METRICS_PORT:-9102}:9100"
+
+  sync-courses:
+    <<: *sync-worker
+    environment:
+      <<: *sync-env
+      INTEGRATION: courses
+    ports:
+      - "127.0.0.1:${SYNC_COURSES_METRICS_PORT:-9103}:9100"
+
+volumes:
+  sis-db-data:
+  lms-db-data:
