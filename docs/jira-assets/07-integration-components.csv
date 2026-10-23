@@ -1,0 +1,16 @@
+Name,Integration ID,Data Entity,Called By,Connectors,Process Type,Status
+RPS - DXMULTI-0001 : AppEvent - ExternalOrganisation,DXMULTI-0001,ExternalOrganisation,ETL - DXMULTI-0001 : AppEvents from SMS to EDW,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - InternalOrganisationalUnit,DXMULTI-0001,InternalOrganisationalUnit,ETL - DXMULTI-0001 : AppEvents from SMS to EDW,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - SMStandardCode,DXMULTI-0001,SMStandardCode,ETL - DXMULTI-0001 : AppEvents from SMS to EDW,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentAward,DXMULTI-0001,StudentAward,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentComment,DXMULTI-0001,StudentComment,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentContactDetail,DXMULTI-0001,StudentContactDetail,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentDisability,DXMULTI-0001,StudentDisability,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentSanction,DXMULTI-0001,StudentSanction,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentStudyPackage,DXMULTI-0001,StudentStudyPackage,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Study Plan,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentStudyPackageApplication,DXMULTI-0001,StudentStudyPackageApplication,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Study Plan,CONN - Data Warehouse (EDW) DB | CONN - Technology One Student SOAP - S1 Services,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentStudyPackageOffer,DXMULTI-0001,StudentStudyPackageOffer,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Study Plan,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudentStudyPackageState,DXMULTI-0001,StudentStudyPackageState,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Study Plan,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudyPackage,DXMULTI-0001,StudyPackage,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum,CONN - Data Warehouse (EDW) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudyPackageAvailability,DXMULTI-0001,StudyPackageAvailability,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum,CONN - Data Warehouse (EDW) DB | CONN - Technology One Student Replica (Edge) DB,Module,Production
+RPS - DXMULTI-0001 : AppEvent - StudyPackageCategoryType,DXMULTI-0001,StudyPackageCategoryType,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum,CONN - Data Warehouse (EDW) DB,Module,Production

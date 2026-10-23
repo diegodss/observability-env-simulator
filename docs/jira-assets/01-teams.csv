@@ -1,3 +1,4 @@
-Name,Email,Assignment Group
-Current Students,current-students@example.com,current-students-support
-Data Squad,data-squad@example.com,data-squad-support
+Name,Email,Assignment Group,Chat Channel,On-call Rotation
+Current Students,current-students@example.com,current-students-support,,
+Data Squad,data-squad@example.com,data-squad-support,,
+Integration & Platforms,integration-platforms@example.com,integration-platforms-support,,

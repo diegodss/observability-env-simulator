@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Check that Jira Assets answers the lookups the alert correlation relies on.
 
-Expected objects are read from docs/jira-assets/03-applications.csv and
-04-integrations.csv, so the test always matches what you imported.
+Expected objects are read from docs/jira-assets/04-applications.csv, 05-connectors.csv and
+06-integrations.csv, so the test always matches what you imported.
 
 For every Application and Integration it checks that:
   1. `"Monitoring Job" = <job>` returns exactly one object of the right type,
-  2. owner, integration key and source/target references match the CSV,
-  3. the blast-radius query (integrations whose Target Application is X) is complete,
+  2. owner, integration ID/key, source/target, platform and connectors match the CSV,
+  3. the blast-radius queries (by Target Application and by shared Connector) are complete,
   4. alerts from job=lms + the syncs that write to it all resolve to the same root CI.
 
 Configuration (environment variables, or a .env file in the repo root):
@@ -162,11 +162,16 @@ def first(obj: dict, attribute: str) -> str:
     return values[0] if values else ""
 
 
+def split(value: str) -> list[str]:
+    return sorted(v.strip() for v in value.split("|") if v.strip())
+
+
 def main() -> int:
     load_dotenv()
     schema = os.getenv("ASSETS_SCHEMA", "Observability POC")
-    applications = read_csv("03-applications.csv")
-    integrations = read_csv("04-integrations.csv")
+    applications = read_csv("04-applications.csv")
+    connectors = read_csv("05-connectors.csv")
+    integrations = read_csv("06-integrations.csv")
     assets = Assets()
     report = Report()
     in_schema = f"objectSchema = {quote(schema)}"
@@ -177,6 +182,9 @@ def main() -> int:
     for object_type, rows in (("Application", applications), ("Integration", integrations)):
         for row in rows:
             job = row["Monitoring Job"]
+            if not job:
+                print(f"  [SKIP] {object_type} '{row['Name']}' has no Monitoring Job (not monitored)")
+                continue
             query = f'{in_schema} AND "Monitoring Job" = {quote(job)}'
             results = assets.aql(query)
             if not report.check(len(results) == 1, f"job={job}", f"{len(results)} objects for: {query}"
@@ -187,21 +195,33 @@ def main() -> int:
             report.check(obj["label"] == row["Name"], f"job={job} name", f"expected {row['Name']!r}, got {obj['label']!r}")
             expected = {"Owner Team": row["Owner Team"], "Business Service": row["Business Service"]}
             if object_type == "Integration":
-                expected |= {k: row[k] for k in ("Integration Key", "Source Application", "Target Application")}
+                expected |= {k: row[k] for k in ("Integration ID", "Integration Key", "Source Application",
+                                                 "Target Application", "Platform")}
             for attribute, value in expected.items():
                 actual = first(obj, attribute)
                 report.check(actual == value, f"job={job} {attribute}", f"expected {value!r}, got {actual!r}")
+            if object_type == "Integration":
+                actual = sorted(obj["attrs"].get("Connectors", []))
+                report.check(actual == split(row["Connectors"]), f"job={job} Connectors", f"{actual}")
 
     print("\n2. Blast radius (integrations writing to each application)")
     for app in applications:
         expected = sorted(i["Name"] for i in integrations if i["Target Application"] == app["Name"])
         query = f'{in_schema} AND objectType = "Integration" AND "Target Application" = {quote(app["Name"])}'
         actual = sorted(o["label"] for o in assets.aql(query))
-        report.check(actual == expected, f"Target Application = {app['Name']}", f"{actual}")
+        report.check(actual == expected, f"Target Application = {app['Name']}", f"{len(actual)}: {actual}")
+
+    print("\n   Blast radius per connector (integrations that share it)")
+    for connector in connectors:
+        expected = sorted(i["Name"] for i in integrations if connector["Name"] in split(i["Connectors"]))
+        query = f'{in_schema} AND objectType = "Integration" AND "Connectors" = {quote(connector["Name"])}'
+        actual = sorted(o["label"] for o in assets.aql(query))
+        report.check(actual == expected, f"Connectors = {connector['Name']}", f"{len(actual)} integrations")
 
     target = next(a["Name"] for a in applications if a["Monitoring Job"] == "lms")
     print(f"\n3. Root-CI correlation for an outage of job=lms ({target})")
-    outage_jobs = ["lms"] + [i["Monitoring Job"] for i in integrations if i["Target Application"] == target]
+    outage_jobs = ["lms"] + [i["Monitoring Job"] for i in integrations
+                             if i["Target Application"] == target and i["Monitoring Job"]]
     roots = {}
     for job in outage_jobs:
         obj = found.get(job)
