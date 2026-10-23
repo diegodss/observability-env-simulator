@@ -11,6 +11,8 @@ LMS health check / scrape fails and all three integrations independently report 
 Start `lms` again and the jobs recover on their next run without being restarted.
 
 The full build specification is in [docs/requirements/README.md](docs/requirements/README.md).
+The Jira Assets model used for alert enrichment, with CSV imports and a lookup test, is in
+[docs/jira-assets/README.md](docs/jira-assets/README.md).
 
 > **Not production-hardened.** Synthetic data only, development credentials, a shared static API
 > token, ports bound to `127.0.0.1`. Do not expose this to a network.
@@ -57,6 +59,7 @@ Integrations
 | `sync-staff` | http://localhost:9102/metrics | `sync-staff:9100` | Staff Sync worker metrics |
 | `sync-courses` | http://localhost:9103/metrics | `sync-courses:9100` | Course Sync worker metrics |
 | `sis-db`, `lms-db` | – (not exposed) | `:5432` | One PostgreSQL 16 per application |
+| `prometheus`, `grafana` (optional profile) | http://localhost:9090, http://localhost:3000 | `:9090`, `:3000` | Only with `--profile observability` |
 
 Endpoints on both apps: `/api/{students,staff,courses}`, `/health/live`, `/health/ready`, `/metrics`.
 SIS adds `PATCH /api/{collection}/{id}`; LMS adds `PUT /api/{collection}/bulk`.
@@ -71,6 +74,46 @@ curl -s localhost:8002/api/students            # replicated copy (+ synced_at)
 curl -s localhost:9101/metrics | grep ^integration_
 docker compose logs -f sync-students           # one JSON line per run
 ```
+
+## Optional dashboards (Prometheus + Grafana)
+
+Not part of the default stack: `docker compose up --build -d` still starts only the 7 POC services.
+Add the monitoring profile when you want a UI:
+
+```bash
+docker compose --profile observability up -d
+```
+
+| UI | URL | What it shows |
+|---|---|---|
+| Grafana | http://localhost:3000 | Home dashboard **Education Integration - Jobs and EDW health**. Anonymous view works; log in as `admin` / `admin` to edit. |
+| Prometheus | http://localhost:9090/targets | The 5 scrape targets; `lms` turns DOWN during the outage |
+| Prometheus alerts | http://localhost:9090/alerts | The suggested rules from [docs/metrics.md](docs/metrics.md), evaluated but not sent anywhere |
+
+The dashboard refreshes every 5 s:
+
+| Section | Panels |
+|---|---|
+| Health now | UP/DOWN tiles for Technology One (SM) and EDW, and OK/FAILED tiles for each flow |
+| Timeline | A status timeline in which the three flows turn red together with EDW |
+| Job runs | Runs per minute by outcome; failures by `error_type @ failed_system`; consecutive failures; seconds since the last success; p95 run duration |
+| Data | Records synced per minute; records stored per collection in each system |
+
+Prometheus scrapes every 10 s, using the same job names as the Jira Assets **Monitoring Job** key.
+It adds a `display_name` label (EDW, AppEvents - Student, …) so panels show real system names.
+During an LMS outage it fires `TargetSystemUnavailable` plus three `IntegrationLastRunFailed`
+alerts: the four signals that share one root cause.
+
+Stop the monitoring with:
+
+```bash
+docker compose --profile observability down
+```
+
+The profile is opt-in, and its settings are in `observability/`. The first failure of a new
+`error_type` is missing from the "failures by error type" panel, because that counter series only
+appears once the first failure happens. The runs-by-outcome panel is pre-initialised and always
+shows it.
 
 ## Scenario controls
 
@@ -202,6 +245,7 @@ integrations/                  one worker image, run as three services via INTEG
 tests/unit, tests/integration  pytest suites
 scripts/                       up, status, outage, recovery, update, reset, run-tests
 docs/                          API contract, metric/log catalogue, suggested rules, requirements
+observability/                 optional Prometheus config/rules and Grafana provisioning + dashboard
 ```
 
 ## Design decisions

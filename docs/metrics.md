@@ -1,7 +1,9 @@
 # Telemetry reference
 
 The environment only **exposes** telemetry: health endpoints, Prometheus metrics and JSON logs.
-No Prometheus, Alertmanager or Grafana is deployed.
+By default no Prometheus, Alertmanager or Grafana is deployed. For local viewing, an opt-in
+`observability` Compose profile adds Prometheus (these scrape jobs and the rules below) and Grafana
+with a provisioned dashboard. See the README.
 
 ## Scrape targets
 

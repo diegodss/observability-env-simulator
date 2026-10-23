@@ -1,0 +1,33 @@
+# The suggested rules from docs/metrics.md. Prometheus evaluates them and shows
+# them at http://localhost:9090/alerts; no Alertmanager is deployed, so nothing is sent.
+groups:
+  - name: education-integration-poc
+    rules:
+      - alert: TargetSystemUnavailable
+        expr: up{job="lms"} == 0
+        for: 20s
+        labels: {severity: critical, service: lms}
+        annotations:
+          summary: "{{ $labels.display_name }} cannot be scraped"
+      - alert: SourceSystemUnavailable
+        expr: up{job="sis"} == 0
+        for: 20s
+        labels: {severity: critical, service: sis}
+        annotations:
+          summary: "{{ $labels.display_name }} cannot be scraped"
+      - alert: AppUnhealthy
+        expr: app_up{app=~"sis|lms"} == 0
+        for: 20s
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.app }} is running but its database is unreachable"
+      - alert: IntegrationLastRunFailed
+        expr: integration_last_run_success == 0 and on(integration) integration_runs_total{outcome="failure"} > 0
+        labels: {severity: critical, dependency: lms}
+        annotations:
+          summary: "{{ $labels.display_name }}: latest run failed (target {{ $labels.target }})"
+      - alert: IntegrationStale
+        expr: time() - integration_last_success_timestamp_seconds > 90
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.display_name }}: no successful run for over 90s"
