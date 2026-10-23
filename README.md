@@ -54,13 +54,17 @@ observability-env-simulator/   this repo: the systems being monitored
 observability-platform/        Prometheus, Grafana, alerting, correlation (where changes happen)
 ```
 
-1. **Start this simulator first.** It creates the Docker network `observability-sim`.
-2. **Then start the platform** (`docker compose up -d` in `observability-platform`). It joins that
-   network and scrapes the services by name (`edw:8000`, `appevents-student:9100`, …).
-3. **Break things here** (`docker compose stop edw`, …) and watch the platform react.
+1. **Start each repo** with `docker compose up -d` (add `--build` here), in either order. Both
+   declare the same Docker network, `observability-sim`, so the platform's Prometheus scrapes these
+   services by name (`edw:8000`, `appevents-student:9100`, …).
+2. **Break things here** (`docker compose stop edw`, …) and watch the platform react.
 
-Each repo starts, stops and resets on its own. The simulator works without the platform, and the
-platform's Prometheus marks targets DOWN while the simulator is stopped.
+Each repo starts, stops and resets on its own, in any order:
+- whichever stack starts second logs a harmless warning that the network "was not created for
+  project …";
+- the network is removed when the last stack using it goes down;
+- the simulator works without the platform, and the platform's Prometheus marks targets DOWN while
+  the simulator is stopped.
 
 ## Prerequisites
 
@@ -108,7 +112,7 @@ Integrations
 | `appevents-curriculum` | http://localhost:9103/metrics | `appevents-curriculum:9100` | Curriculum flow worker metrics |
 | `technology-one-sm-db`, `edw-db` | – (not exposed) | `:5432` | One PostgreSQL 16 per application |
 
-All services are on the Docker network `observability-sim`, which the platform joins.
+All services are on the Docker network `observability-sim`, which the platform shares.
 
 Endpoints:
 - **Both apps:** `/api/{students,staff,courses}`, `/health/live`, `/health/ready`, `/metrics`.

@@ -116,8 +116,11 @@ volumes:
   technology-one-sm-db-data:
   edw-db-data:
 
-# Fixed network name so the separate observability-platform stack can join it
-# and scrape these services by name (edw:8000, appevents-student:9100, ...).
+# Fixed network name so the separate observability-platform stack can scrape these
+# services by name (edw:8000, appevents-student:9100, ...).
+# Shared network: both repos declare the same named network, so either stack can
+# start or stop first. Whichever starts second logs a harmless warning that the
+# network "was not created for project ...": that is expected.
 networks:
   default:
     name: observability-sim
