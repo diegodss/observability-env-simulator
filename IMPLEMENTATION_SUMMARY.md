@@ -66,10 +66,10 @@ This summary records the first build and its test run. The environment has chang
   - Folders, environment variables, metric label values (`integration=student|curriculum|general`,
     `source=technology-one-sm`, `target=edw`), scripts and tests were renamed to match.
   - `lms_bulk_upsert_records_total` is now `edw_bulk_upsert_records_total`.
-- **Optional Prometheus + Grafana profile** (`docker compose --profile observability up -d`): a
-  provisioned dashboard and alert rules.
-- **Jira Assets model** for alert enrichment (`docs/jira-assets/`) and incident ticket templates
-  (`docs/incident-templates.md`).
+- **Prometheus + Grafana, alert rules, the Jira Assets model and the incident ticket templates** were
+  added here for a while, then moved to their own repo,
+  [observability-platform](https://github.com/diegodss/observability-platform). This repo now only
+  simulates the apps; it exposes the shared Docker network `observability-sim` for the platform.
 
 See the README for current commands.
 

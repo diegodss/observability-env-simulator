@@ -1,8 +1,13 @@
-# Education Integration Failure Simulation
+# Observability env simulator
 
-A locally runnable, deterministic testbed for an external observability / alert-correlation POC.
-It simulates two real systems and the integrations between them, using mock services named after
-the systems they stand in for:
+A locally runnable, deterministic simulation of two systems and the integrations between them. It is
+the "production" that the separate
+[**observability-platform**](https://github.com/diegodss/observability-platform) watches. The
+platform holds Prometheus, Grafana, the alert rules, Jira Assets enrichment and, later,
+Alertmanager/Keep. This repo only produces the signals: health endpoints, Prometheus metrics and
+JSON logs.
+
+The mock services are named after the systems they stand in for:
 
 | Service | Stands in for | Jira Assets CI (`ci_name`) |
 |---|---|---|
@@ -28,12 +33,34 @@ flows run every 5 minutes.
 Start `edw` again and the workers recover on their next run without being restarted.
 
 **Further reading:**
-- [docs/jira-assets/README.md](docs/jira-assets/README.md): the Jira Assets model used for alert enrichment, with CSV imports and a lookup test.
-- [docs/incident-templates.md](docs/incident-templates.md): the incident ticket templates.
+- [docs/api.md](docs/api.md) and [docs/metrics.md](docs/metrics.md): the API and telemetry contract this repo exposes.
+- [observability-platform](https://github.com/diegodss/observability-platform): monitoring, alert rules, the Jira Assets model and incident templates.
 - [docs/requirements/README.md](docs/requirements/README.md): the original build specification. It uses the earlier mock names SIS/LMS.
 
 > **Not production-hardened.** Synthetic data only, development credentials, a shared static API
 > token, ports bound to `127.0.0.1`. Do not expose this to a network.
+
+## Working with the observability platform
+
+Clone both repos side by side and run them as two separate Compose projects:
+
+```bash
+git clone https://github.com/diegodss/observability-env-simulator.git
+git clone https://github.com/diegodss/observability-platform.git
+```
+
+```
+observability-env-simulator/   this repo: the systems being monitored
+observability-platform/        Prometheus, Grafana, alerting, correlation (where changes happen)
+```
+
+1. **Start this simulator first.** It creates the Docker network `observability-sim`.
+2. **Then start the platform** (`docker compose up -d` in `observability-platform`). It joins that
+   network and scrapes the services by name (`edw:8000`, `appevents-student:9100`, …).
+3. **Break things here** (`docker compose stop edw`, …) and watch the platform react.
+
+Each repo starts, stops and resets on its own. The simulator works without the platform, and the
+platform's Prometheus marks targets DOWN while the simulator is stopped.
 
 ## Prerequisites
 
@@ -80,15 +107,15 @@ Integrations
 | `appevents-general` | http://localhost:9102/metrics | `appevents-general:9100` | General flow worker metrics |
 | `appevents-curriculum` | http://localhost:9103/metrics | `appevents-curriculum:9100` | Curriculum flow worker metrics |
 | `technology-one-sm-db`, `edw-db` | – (not exposed) | `:5432` | One PostgreSQL 16 per application |
-| `prometheus`, `grafana` (optional profile) | http://localhost:9090, http://localhost:3000 | `:9090`, `:3000` | Only with `--profile observability` |
+
+All services are on the Docker network `observability-sim`, which the platform joins.
 
 Endpoints:
 - **Both apps:** `/api/{students,staff,courses}`, `/health/live`, `/health/ready`, `/metrics`.
 - **`technology-one-sm` adds:** `PATCH /api/{collection}/{id}`.
 - **`edw` adds:** `PUT /api/{collection}/bulk`.
 
-Full contract: [docs/api.md](docs/api.md). Metrics, logs and alert rules:
-[docs/metrics.md](docs/metrics.md).
+Full contract: [docs/api.md](docs/api.md). Metrics and logs: [docs/metrics.md](docs/metrics.md).
 
 ### Viewing data
 
@@ -98,48 +125,6 @@ curl -s localhost:8002/api/students            # replicated copy in the EDW mock
 curl -s localhost:9101/metrics | grep ^integration_
 docker compose logs -f appevents-student       # one JSON line per run
 ```
-
-## Optional dashboards (Prometheus + Grafana)
-
-Not part of the default stack: `docker compose up --build -d` still starts only the 7 POC services.
-Add the monitoring profile when you want a UI:
-
-```bash
-docker compose --profile observability up -d
-```
-
-| UI | URL | What it shows |
-|---|---|---|
-| Grafana | http://localhost:3000 | Home dashboard **Education Integration - Jobs and EDW health**. Anonymous view works; log in as `admin` / `admin` to edit. |
-| Prometheus | http://localhost:9090/targets | The 5 scrape targets; `edw` turns DOWN during the outage |
-| Prometheus alerts | http://localhost:9090/alerts | The alert rules from [docs/metrics.md](docs/metrics.md), evaluated but not sent anywhere |
-
-The dashboard refreshes every 5 s:
-
-| Section | Panels |
-|---|---|
-| Health now | UP/DOWN tiles for Technology One (SM) and EDW, and OK/FAILED tiles for each flow |
-| Timeline | A status timeline in which the three flows turn red together with EDW |
-| Job runs | Runs per minute by outcome; failures by `error_type @ failed_system`; consecutive failures; seconds since the last success; p95 run duration |
-| Data | Records synced per minute; records stored per collection in each system |
-
-Prometheus scrapes every 10 s and adds two labels:
-- `ci_name`: the exact Jira Assets object name of each target, which is how alerts are matched to CIs;
-- `display_name`: a short label for panels (EDW, AppEvents - Student, …).
-
-During an EDW outage it fires `TargetSystemUnavailable` plus three `IntegrationLastRunFailed` alerts:
-the four signals that share one root cause.
-
-Stop the monitoring with:
-
-```bash
-docker compose --profile observability down
-```
-
-The profile is opt-in, and its settings are in `observability/`. The first failure of a new
-`error_type` is missing from the "failures by error type" panel, because that counter series only
-appears once the first failure happens. The runs-by-outcome panel is pre-initialised and always
-shows it.
 
 ## Scenario controls
 
@@ -163,7 +148,7 @@ docker compose stop edw               # or: scripts/simulate-edw-outage.sh (wait
 
 Expected within two intervals (≈ 65 s):
 
-- `edw` unreachable: `curl localhost:8002/health/ready` fails; a Prometheus scrape gives `up{job="edw"}=0`.
+- `edw` unreachable: `curl localhost:8002/health/ready` fails; the platform's Prometheus shows `up{job="edw"}=0`.
 - `technology-one-sm`, `edw-db` and all three workers keep running (`docker compose ps`).
 - Each worker:
   - `integration_last_run_success 0`;
@@ -280,9 +265,8 @@ app-technology-one-sm/         Technology One (SM) mock: FastAPI app, SQL migrat
 app-edw/                       EDW mock: FastAPI app, SQL migrations, bulk upsert
 integrations/                  one worker image, run as the three appevents-* services via INTEGRATION=
 tests/unit, tests/integration  pytest suites
-scripts/                       up, status, outage, recovery, update, reset, run-tests, Jira Assets tools
-docs/                          API contract, metrics/logs/rules, incident templates, Jira Assets model, requirements
-observability/                 optional Prometheus config/rules and Grafana provisioning + dashboard
+scripts/                       up, status, outage, recovery, update, reset, run-tests
+docs/                          API contract, metrics/logs contract, original requirements
 ```
 
 ## Design decisions

@@ -1,16 +1,17 @@
 # Telemetry reference
 
 The environment only **exposes** telemetry: health endpoints, Prometheus metrics and JSON logs.
-By default no Prometheus, Alertmanager or Grafana is deployed. For local viewing, an opt-in
-`observability` Compose profile adds Prometheus (these scrape jobs and the rules below) and Grafana
-with a provisioned dashboard. See the README.
+It deploys no Prometheus, Alertmanager or Grafana. Those live in the separate
+[observability-platform](https://github.com/diegodss/observability-platform) repo, which scrapes
+these endpoints over the shared Docker network `observability-sim` and holds the alert rules,
+dashboards, Jira Assets model and incident templates.
 
 The services are mocks named after the real systems they stand in for: `technology-one-sm`
 (source), `edw` (target), and the three `appevents-*` workers (the DXMULTI-0001 flows).
 
 ## Scrape targets
 
-| Prometheus job | Host address | In-network address | `ci_name` label (Jira Assets CI) |
+| Service (= Prometheus job in the platform) | Host address | In-network address | Jira Assets CI |
 |---|---|---|---|
 | `technology-one-sm` | `localhost:8001/metrics` | `technology-one-sm:8000/metrics` | Technology One (SM) |
 | `edw` | `localhost:8002/metrics` | `edw:8000/metrics` | EDW. Unreachable while `edw` is stopped. |
@@ -21,9 +22,8 @@ The services are mocks named after the real systems they stand in for: `technolo
 Worker metrics are served from a thread independent of EDW calls, so they stay scrapeable during an
 outage.
 
-In the optional profile, Prometheus attaches two labels to every series:
-- `ci_name`: the exact Jira Assets object name, used to match alerts to CIs;
-- `display_name`: a short label for dashboards, e.g. *AppEvents - Student*.
+The platform's Prometheus attaches the Jira Assets CI name to every series as a `ci_name` label;
+the services themselves don't need to know it.
 
 ## `up` vs `app_up`
 
@@ -112,20 +112,5 @@ and on success `upsert` = `{inserted, updated, unchanged}`.
 
 ## Alert rules
 
-These are the rules in `observability/prometheus/rules.yml`. The optional profile evaluates them and
-shows them at http://localhost:9090/alerts. No Alertmanager is deployed, so nothing is sent.
-
-| Alert | Expression | `for` | Meaning |
-|---|---|---|---|
-| `TargetSystemUnavailable` | `up{job="edw"} == 0` | 20s | EDW cannot be scraped (Prometheus `up`, not `app_up`) |
-| `SourceSystemUnavailable` | `up{job="technology-one-sm"} == 0` | 20s | Technology One (SM) cannot be scraped |
-| `AppUnhealthy` | `app_up{app=~"technology-one-sm\|edw"} == 0` | 20s | process up but its database is not |
-| `IntegrationLastRunFailed` | `integration_last_run_success == 0 and on(integration) integration_runs_total{outcome="failure"} > 0` | – | latest run failed, after at least one completed run (label `dependency="edw"`) |
-| `IntegrationStale` | `time() - integration_last_success_timestamp_seconds > 90` | – | no successful run for over 90 s |
-
-During an EDW outage, `TargetSystemUnavailable` fires together with three
-`IntegrationLastRunFailed`. A correlator groups them in two steps:
-1. look up each alert's `ci_name` in Jira Assets;
-2. follow each integration's **Target System** to EDW, the shared root CI.
-
-See [jira-assets/README.md](jira-assets/README.md) and [incident-templates.md](incident-templates.md).
+The alert rules built on these metrics are maintained in the observability-platform repo:
+[docs/alerting.md](https://github.com/diegodss/observability-platform/blob/main/docs/alerting.md).

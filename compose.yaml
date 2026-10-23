@@ -1,11 +1,11 @@
-name: education-integration-poc
+name: observability-env-simulator
 
 # Every value has a working default, so `docker compose up --build -d` needs no
 # .env file. Copy .env.example to .env to override anything.
 
 x-appevents-worker: &appevents-worker
   build: ./integrations
-  image: education-integration-poc/appevents-worker:local
+  image: observability-env-simulator/appevents-worker:local
   restart: unless-stopped
   depends_on:
     technology-one-sm:
@@ -58,7 +58,7 @@ services:
 
   technology-one-sm:
     build: ./app-technology-one-sm
-    image: education-integration-poc/technology-one-sm:local
+    image: observability-env-simulator/technology-one-sm:local
     restart: unless-stopped
     depends_on:
       technology-one-sm-db:
@@ -73,7 +73,7 @@ services:
 
   edw:
     build: ./app-edw
-    image: education-integration-poc/edw:local
+    image: observability-env-simulator/edw:local
     # unless-stopped: recovers from crashes, but `docker compose stop edw`
     # keeps it down until `docker compose start edw`.
     restart: unless-stopped
@@ -112,45 +112,12 @@ services:
     ports:
       - "127.0.0.1:${APPEVENTS_CURRICULUM_METRICS_PORT:-9103}:9100"
 
-  # ---------------------------------------------------------------------------
-  # Optional monitoring, not part of the POC deliverable. Only started with:
-  #   docker compose --profile observability up -d
-  prometheus:
-    image: prom/prometheus:v2.55.1
-    profiles: [observability]
-    restart: unless-stopped
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.retention.time=2d
-    volumes:
-      - ./observability/prometheus:/etc/prometheus:ro
-      - prometheus-data:/prometheus
-    ports:
-      - "127.0.0.1:${PROMETHEUS_HOST_PORT:-9090}:9090"
-
-  grafana:
-    image: grafana/grafana:11.3.1
-    profiles: [observability]
-    restart: unless-stopped
-    depends_on: [prometheus]
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/integration-overview.json
-      GF_ANALYTICS_REPORTING_ENABLED: "false"
-      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-      GF_NEWS_NEWS_FEED_ENABLED: "false"
-    volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana-data:/var/lib/grafana
-    ports:
-      - "127.0.0.1:${GRAFANA_HOST_PORT:-3000}:3000"
-
 volumes:
   technology-one-sm-db-data:
   edw-db-data:
-  prometheus-data:
-  grafana-data:
+
+# Fixed network name so the separate observability-platform stack can join it
+# and scrape these services by name (edw:8000, appevents-student:9100, ...).
+networks:
+  default:
+    name: observability-sim

@@ -1,7 +1,0 @@
-Object Type,Attribute,Attribute Type,Reference Type,Referenced Object Type,Referenced Schema,Cardinality,Unique,Required,Example,Source
-Application,Name,Text (label),,,,Single,Yes,Yes,EDW,SOT: Source System / Target System (canonical name)
-Application,Description,Textarea,,,,Single,No,No,Enterprise Data Warehouse...,Standard (placeholder)
-Application,Aliases,Text,,,,Single,No,No,EDW (SVC_IDM) | EDW(DI_SMS_EDW),Standard (placeholder): name variants found in the SOT
-Application,Resolver Group,Group,,,,Single,No,Yes,Data Squad,Standard (placeholder)
-Application,Status,Status (Production|Production - To Retire|Development|Retired),,,,Single,No,Yes,Production,Standard (placeholder): Assets built-in Status type
-Application,Hosting,Text,,,,Single,No,No,Cloud,SOT: Source Hosting / Target Hosting
