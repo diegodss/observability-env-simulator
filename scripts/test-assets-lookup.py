@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 """Check that Jira Assets answers the lookups the alert correlation relies on.
 
-Expected objects are read from docs/jira-assets/04-applications.csv, 05-connectors.csv and
-06-integrations.csv, so the test always matches what you imported.
+Alerts carry a `ci_name` label with the exact Assets object Name of the CI
+(see observability/prometheus/prometheus.yml). Expected objects are read from
+docs/jira-assets/applications-schema and integrations-schema, so the test
+always matches what you imported.
 
-For every Application and Integration it checks that:
-  1. `"Monitoring Job" = <job>` returns exactly one object of the right type,
-  2. owner, integration ID/key, source/target, platform and connectors match the CSV,
-  3. the blast-radius queries (by Target Application and by shared Connector) are complete,
-  4. alerts from job=lms + the syncs that write to it all resolve to the same root CI.
+It checks that:
+  1. every Application and Integration is found by Name in its schema, exactly once,
+     with the expected Resolver Group, Status and (for integrations) Source/Target System,
+  2. the blast-radius query (integrations whose Target System is X) is complete,
+  3. every ci_name in prometheus.yml resolves to a CI, and the alerts of an outage
+     of job=lms all resolve to the same root CI, whose Resolver Group gets the ticket.
 
 Configuration (environment variables, or a .env file in the repo root):
-  JIRA_SITE           https://<your-site>.atlassian.net
-  JIRA_EMAIL          account email (Cloud)
-  JIRA_API_TOKEN      API token (Cloud) - https://id.atlassian.com/manage-profile/security/api-tokens
-  ASSETS_SCHEMA       object schema name (default "Observability POC")
-  ASSETS_WORKSPACE_ID optional; discovered from JIRA_SITE when omitted (Cloud)
-  JIRA_DEPLOYMENT     cloud (default) or datacenter
-  JIRA_PAT            personal access token (Data Center)
-  ASSETS_API_BASE     optional override of the Assets REST base URL
+  JIRA_SITE                  https://<your-site>.atlassian.net
+  JIRA_EMAIL                 account email (Cloud)
+  JIRA_API_TOKEN             API token (Cloud) - https://id.atlassian.com/manage-profile/security/api-tokens
+  ASSETS_APPLICATION_SCHEMA  schema holding Application objects (default "Applications")
+  ASSETS_INTEGRATION_SCHEMA  schema holding Integration objects (default "Integrations")
+  ASSETS_WORKSPACE_ID        optional; discovered from JIRA_SITE when omitted (Cloud)
+  JIRA_DEPLOYMENT            cloud (default) or datacenter
+  JIRA_PAT                   personal access token (Data Center)
+  ASSETS_API_BASE            optional override of the Assets REST base URL
 
 Exit code 0 when every check passes, 1 otherwise. Read-only: it never writes to Assets.
 """
@@ -27,6 +31,7 @@ import base64
 import csv
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -125,9 +130,10 @@ class Assets:
 
 
 def value_of(value: dict) -> str:
-    referenced = value.get("referencedObject")
-    if referenced:
-        return referenced.get("label") or referenced.get("name") or ""
+    for key, field in (("referencedObject", "label"), ("group", "name"), ("user", "displayName"), ("status", "name")):
+        nested = value.get(key)
+        if isinstance(nested, dict) and nested.get(field):
+            return nested[field]
     return str(value.get("displayValue") or value.get("value") or "")
 
 
@@ -162,80 +168,62 @@ def first(obj: dict, attribute: str) -> str:
     return values[0] if values else ""
 
 
-def split(value: str) -> list[str]:
-    return sorted(v.strip() for v in value.split("|") if v.strip())
+def ci_names() -> dict[str, str]:
+    """job -> ci_name, from the Prometheus scrape config the alerts come from."""
+    text = (ROOT / "observability" / "prometheus" / "prometheus.yml").read_text()
+    return dict(re.findall(r'job_name:\s*(\S+)[\s\S]*?ci_name:\s*"([^"]+)"', text))
 
 
 def main() -> int:
     load_dotenv()
-    schema = os.getenv("ASSETS_SCHEMA", "Observability POC")
-    applications = read_csv("04-applications.csv")
-    connectors = read_csv("05-connectors.csv")
-    integrations = read_csv("06-integrations.csv")
+    schemas = {"Application": os.getenv("ASSETS_APPLICATION_SCHEMA", "Applications"),
+               "Integration": os.getenv("ASSETS_INTEGRATION_SCHEMA", "Integrations")}
+    expected = {"Application": read_csv("applications-schema/01-applications.csv"),
+                "Integration": read_csv("integrations-schema/01-integrations.csv")}
     assets = Assets()
     report = Report()
-    in_schema = f"objectSchema = {quote(schema)}"
     found: dict[str, dict] = {}
 
-    print(f"Assets API: {assets.base}\nSchema: {schema}\n")
-    print("1. Lookup by Monitoring Job (what Keep does for every alert)")
-    for object_type, rows in (("Application", applications), ("Integration", integrations)):
+    def scope(object_type: str) -> str:
+        return f"objectSchema = {quote(schemas[object_type])} AND objectType = {quote(object_type)}"
+
+    print(f"Assets API: {assets.base}\nSchemas: {schemas}\n")
+    print("1. Lookup by Name (what Keep does with each alert's ci_name)")
+    for object_type, rows in expected.items():
         for row in rows:
-            job = row["Monitoring Job"]
-            if not job:
-                print(f"  [SKIP] {object_type} '{row['Name']}' has no Monitoring Job (not monitored)")
+            name = row["Name"]
+            results = assets.aql(f"{scope(object_type)} AND Name = {quote(name)}")
+            if not report.check(len(results) == 1, f"{object_type} '{name}'", f"{len(results)} objects found"):
                 continue
-            query = f'{in_schema} AND "Monitoring Job" = {quote(job)}'
-            results = assets.aql(query)
-            if not report.check(len(results) == 1, f"job={job}", f"{len(results)} objects for: {query}"
-                                if len(results) != 1 else f"{results[0]['type']} '{results[0]['label']}'"):
-                continue
-            obj = found[job] = results[0]
-            report.check(obj["type"] == object_type, f"job={job} object type", f"expected {object_type}, got {obj['type']}")
-            report.check(obj["label"] == row["Name"], f"job={job} name", f"expected {row['Name']!r}, got {obj['label']!r}")
-            expected = {"Owner Team": row["Owner Team"], "Business Service": row["Business Service"]}
-            if object_type == "Integration":
-                expected |= {k: row[k] for k in ("Integration ID", "Integration Key", "Source Application",
-                                                 "Target Application", "Platform")}
-            for attribute, value in expected.items():
+            obj = found[name] = results[0]
+            checks = ["Resolver Group", "Status"] + (["Source System", "Target System"] if object_type == "Integration" else [])
+            for attribute in checks:
                 actual = first(obj, attribute)
-                report.check(actual == value, f"job={job} {attribute}", f"expected {value!r}, got {actual!r}")
-            if object_type == "Integration":
-                actual = sorted(obj["attrs"].get("Connectors", []))
-                report.check(actual == split(row["Connectors"]), f"job={job} Connectors", f"{actual}")
+                report.check(actual == row[attribute], f"    {attribute}", f"expected {row[attribute]!r}, got {actual!r}")
 
     print("\n2. Blast radius (integrations writing to each application)")
-    for app in applications:
-        expected = sorted(i["Name"] for i in integrations if i["Target Application"] == app["Name"])
-        query = f'{in_schema} AND objectType = "Integration" AND "Target Application" = {quote(app["Name"])}'
-        actual = sorted(o["label"] for o in assets.aql(query))
-        report.check(actual == expected, f"Target Application = {app['Name']}", f"{len(actual)}: {actual}")
+    for app in expected["Application"]:
+        want = sorted(i["Name"] for i in expected["Integration"] if i["Target System"] == app["Name"])
+        got = sorted(o["label"] for o in assets.aql(f'{scope("Integration")} AND "Target System" = {quote(app["Name"])}'))
+        report.check(got == want, f"Target System = {app['Name']}", f"{len(got)} integrations")
 
-    print("\n   Blast radius per connector (integrations that share it)")
-    for connector in connectors:
-        expected = sorted(i["Name"] for i in integrations if connector["Name"] in split(i["Connectors"]))
-        query = f'{in_schema} AND objectType = "Integration" AND "Connectors" = {quote(connector["Name"])}'
-        actual = sorted(o["label"] for o in assets.aql(query))
-        report.check(actual == expected, f"Connectors = {connector['Name']}", f"{len(actual)} integrations")
-
-    target = next(a["Name"] for a in applications if a["Monitoring Job"] == "lms")
-    print(f"\n3. Root-CI correlation for an outage of job=lms ({target})")
-    outage_jobs = ["lms"] + [i["Monitoring Job"] for i in integrations
-                             if i["Target Application"] == target and i["Monitoring Job"]]
+    print("\n3. Alert ci_name -> root CI -> resolver group")
+    labels = ci_names()
+    for job, name in labels.items():
+        report.check(name in found, f"job={job} ci_name", f"'{name}'" + ("" if name in found else " not found in Assets"))
+    outage = [job for job, name in labels.items()
+              if job == "lms" or (name in found and first(found[name], "Target System") == labels.get("lms"))]
     roots = {}
-    for job in outage_jobs:
-        obj = found.get(job)
-        if obj is None:
-            report.check(False, f"job={job}", "not found in step 1")
-            continue
-        roots[job] = first(obj, "Target Application") if obj["type"] == "Integration" else obj["label"]
-        print(f"      alert job={job:<14} -> root CI {roots[job]}")
-    if report.check(len(set(roots.values())) == 1 and len(roots) == len(outage_jobs),
-                    f"{len(outage_jobs)} alerts collapse to one root CI", ", ".join(sorted(set(roots.values())))):
-        root = next(iter(roots.values()))
-        root_obj = next((o for o in found.values() if o["label"] == root and o["type"] == "Application"), None)
-        owner = first(root_obj, "Owner Team") if root_obj else ""
-        report.check(bool(owner), "root CI has an owner to route the ticket to", owner)
+    for job in outage:
+        obj = found.get(labels[job])
+        if obj:
+            roots[job] = first(obj, "Target System") if obj["type"] == "Integration" else obj["label"]
+            print(f"      alert job={job:<14} -> root CI {roots[job]}")
+    if report.check(len(roots) == len(outage) and len(set(roots.values())) == 1,
+                    f"{len(outage)} alerts of an outage of job=lms collapse to one root CI", ", ".join(sorted(set(roots.values())))):
+        root = found.get(next(iter(roots.values())))
+        group = first(root, "Resolver Group") if root else ""
+        report.check(bool(group), "root CI has a Resolver Group to route the ticket to", group)
 
     print(f"\n{'All checks passed' if not report.failures else f'{report.failures} check(s) failed'}")
     return 0 if not report.failures else 1

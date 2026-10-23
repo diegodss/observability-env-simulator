@@ -1,6 +1,6 @@
 # Optional monitoring profile (docker compose --profile observability up -d).
-# Job names equal the services' Monitoring Job keys in Jira Assets, and the
-# display_name label carries the real system name for dashboards.
+# ci_name is the exact Jira Assets object Name (the CI) each target represents;
+# display_name is a short label for dashboards.
 global:
   scrape_interval: 10s
   scrape_timeout: 5s
@@ -13,20 +13,20 @@ scrape_configs:
   - job_name: sis
     static_configs:
       - targets: ["sis:8000"]
-        labels: {display_name: "Technology One (SM)"}
+        labels: {display_name: "Technology One (SM)", ci_name: "Technology One (SM)"}
   - job_name: lms
     static_configs:
       - targets: ["lms:8000"]
-        labels: {display_name: "EDW"}
+        labels: {display_name: "EDW", ci_name: "EDW"}
   - job_name: sync-students
     static_configs:
       - targets: ["sync-students:9100"]
-        labels: {display_name: "AppEvents - Student"}
+        labels: {display_name: "AppEvents - Student", ci_name: "ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student"}
   - job_name: sync-courses
     static_configs:
       - targets: ["sync-courses:9100"]
-        labels: {display_name: "AppEvents - Curriculum"}
+        labels: {display_name: "AppEvents - Curriculum", ci_name: "ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum"}
   - job_name: sync-staff
     static_configs:
       - targets: ["sync-staff:9100"]
-        labels: {display_name: "AppEvents (General)"}
+        labels: {display_name: "AppEvents (General)", ci_name: "ETL - DXMULTI-0001 : AppEvents from SMS to EDW"}

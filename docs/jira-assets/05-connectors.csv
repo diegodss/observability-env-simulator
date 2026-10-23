@@ -1,6 +1,0 @@
-Name,Connector Type,Connects To,Platform,Endpoint,Auth Type,Credential Owner,Credential Expiry
-CONN - Data Warehouse (EDW) DB,Database,EDW,Boomi Atom (Production),,,,
-CONN - Technology One Student SOAP - ADF Services,SOAP,Technology One (SM),Boomi Atom (Production),,,,
-CONN - Technology One Student SOAP - S1 Services,SOAP,Technology One (SM),Boomi Atom (Production),,,,
-CONN - Technology One Student Replica (Edge) DB,Database,Technology One (SM),Boomi Atom (Production),,,,
-CONN - Boomi AtomSphere API,Platform API,,Boomi Atom (Production),,,,

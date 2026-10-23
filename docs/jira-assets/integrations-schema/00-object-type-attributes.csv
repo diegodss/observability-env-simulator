@@ -1,0 +1,27 @@
+Object Type,Attribute,Attribute Type,Reference Type,Referenced Object Type,Referenced Schema,Cardinality,Unique,Required,Example,Source
+Integration,Name,Text (label),,,,Single,Yes,Yes,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student,SOT: Integration Name
+Integration,Description,Textarea,,,,Single,No,No,Synchronises real-time changes to student profiles...,Standard (placeholder)
+Integration,Source System,Object,Reads from,Application,Applications,Single,No,Yes,Technology One (SM),SOT: Source System
+Integration,Target System,Object,Writes to,Application,Applications,Single,No,Yes,EDW,SOT: Target System
+Integration,Resolver Group,Group,,,,Single,No,Yes,Current Students,Standard (placeholder)
+Integration,Status,Status (Production|Production - To Retire|Development|Retired),,,,Single,No,Yes,Production,SOT: Status (Assets built-in Status type)
+Integration,Platform,Select (Boomi|SSIS|Unix),,,,Single,No,Yes,Boomi,SOT: Platform
+Integration,Method,Text,,,,Single,No,No,"SOAP, Database",SOT: Method
+Integration,Process Type,Select (ETL|Module|Listener|Web Services Server|SSIS|Test),,,,Single,No,Yes,ETL,SOT: Process Type
+Integration,Integration Pattern,Select (ETL|API|Framework|Event Listener|SFTP Listener),,,,Single,No,No,ETL,SOT: Integration Pattern
+Integration,Schedule,Text,,,,Single,No,No,Every 5 minutes daily between 07:00 and 21:59,SOT: Schedule
+Integration,Frequency,Text,,,,Single,No,No,Every 5 minutes daily between 07:00 and 21:59,SOT: Frequency
+Integration,Volume per execution (MB),Float,,,,Single,No,No,0.0,SOT: Volume per execution (MB) (blank when 'No Data')
+Integration,Volume per week (MB),Float,,,,Single,No,No,15.30,SOT: Volume per week (MB) (blank when 'No Data')
+Integration,Domain,Text,,,,Single,No,No,Current Students,SOT: Domain
+Integration,Subdomain,Text,,,,Single,No,No,Student Enrolment,SOT: Subdomain
+Integration,Source Hosting,Text,,,,Single,No,No,LP-SQLSSIS01-W,SOT: Source Hosting
+Integration,Target Hosting,Text,,,,Single,No,No,Cloud,SOT: Target Hosting
+Integration,Security,Text,,,,Single,No,No,Basic Auth (DI_IPAAS),SOT: Security
+Integration,Legacy (Y/N),Select (Y|N),,,,Single,No,No,N,SOT: Legacy (Y/N)
+Integration,Log Source,Text,,,,Single,No,No,"Kibana, Boomi Process Reporting",SOT: Log Source
+Integration,Info Source,Text,,,,Single,No,No,"Boomi, Duncan",SOT: Info Source
+Integration,Source Confidence,Select (High|Medium|Low),,,,Single,No,No,High,SOT: Source Confidence
+Integration,Connectors,Text,,,,Single,No,No,CONN - Data Warehouse (EDW) DB | CONN - Technology One Student SOAP - ADF Services,SOT: Connectors
+Integration,Git hub location,Text,,,,Single,No,No,scu-ts/dynamics-data,SOT: Git hub location
+Integration,Notes,Textarea,,,,Single,No,No,,SOT: Notes

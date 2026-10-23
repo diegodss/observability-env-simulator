@@ -99,8 +99,9 @@ The dashboard refreshes every 5 s:
 | Job runs | Runs per minute by outcome; failures by `error_type @ failed_system`; consecutive failures; seconds since the last success; p95 run duration |
 | Data | Records synced per minute; records stored per collection in each system |
 
-Prometheus scrapes every 10 s, using the same job names as the Jira Assets **Monitoring Job** key.
-It adds a `display_name` label (EDW, AppEvents - Student, …) so panels show real system names.
+Prometheus scrapes every 10 s. It adds a `ci_name` label carrying the exact Jira Assets object name
+of each target, which is how alerts are matched to CIs, and a short `display_name` label (EDW,
+AppEvents - Student, …) for panels.
 During an LMS outage it fires `TargetSystemUnavailable` plus three `IntegrationLastRunFailed`
 alerts: the four signals that share one root cause.
 

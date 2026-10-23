@@ -1,205 +1,176 @@
-# Jira Assets model for alert enrichment
+# Jira Assets: Integrations schema (and a proposed Applications schema)
 
-Keep enriches each alert by looking up its Prometheus `job` label in Jira Assets. It then follows
-references to find the root cause (platform, connector or application), its owner, and everything
-else affected. The model combines the Integrations SOT (`Integrations SOT(Integrations).csv`) with
-ownership, which the SOT does not record.
+Alerts carry the exact Assets object Name of the failing CI (`ci_name`). Keep looks that name up,
+follows **Target System** to find the root CI, and routes the ticket to the root CI's
+**Resolver Group**.
 
-| File | Contents |
+## Principles
+
+1. **The SOT is a one-off initial load.** `Integrations SOT(Integrations).csv` seeds Assets once.
+   From then on **Jira Assets is the source of truth**, and changes are made there, not in the SOT.
+2. **Two schemas (option A).**
+   - **Integrations** is owned by the integration owner (you).
+   - **Applications** is a *proposed* schema for the systems that integrations read from and write to.
+   - Integrations reference Applications across schemas. If the CMDB team already has an application
+     type, re-point the two references and drop the proposed schema (see
+     [Adopting the CMDB's application schema](#adopting-the-cmdbs-application-schema)).
+3. **Mirror the SOT, invent almost nothing.**
+   - Integration attributes copy the SOT column names verbatim.
+   - The only additions are **Description** and **Resolver Group**, plus **Aliases** and **Status**
+     on Application.
+4. **Built-in Assets types where they exist.** **Group** for Resolver Group (a real Jira group) and
+   **Status** for lifecycle.
+5. **Every name is a placeholder.** Schema, object type, attribute and reference-type names can be
+   renamed later to match the organisation's standard.
+
+## Files
+
+| File | Purpose |
 |---|---|
-| `00-object-type-attributes.csv` | Specification of the 7 object types and 79 attributes: type, reference type, cardinality, unique/required, example, and **Source** (SOT column, provided, inferred or new). A checklist for creating them in the UI, not an import file. |
-| `01-teams.csv` | Current Students, Data Squad, Integration & Platforms |
-| `02-business-services.csv` | Student Administration / Core Data (domain Current Students) |
-| `03-integration-platforms.csv` | Boomi Atom (Production) |
-| `04-applications.csv` | Technology One (SM), EDW |
-| `05-connectors.csv` | The 5 Boomi connectors used by the DXMULTI-0001 flows and their modules |
-| `06-integrations.csv` | The 4 ETL - DXMULTI-0001 AppEvents flows: Student, Curriculum, Study Plan, and the unsuffixed general flow |
-| `07-integration-components.csv` | The 15 RPS - DXMULTI-0001 AppEvent modules, one per data entity |
-| [`../../scripts/preview-assets-graph.py`](../../scripts/preview-assets-graph.py) | Offline check of the CSVs, and a text view of the resulting graph |
-| [`../../scripts/test-assets-lookup.py`](../../scripts/test-assets-lookup.py) | Read-only check that the lookups Keep needs return the right answers |
+| `initial-load/scope-integrations.csv` | Which SOT integrations to load, plus Resolver Group and Description (not in the SOT) |
+| `initial-load/scope-applications.csv` | The applications in scope: canonical Name, Aliases (SOT spellings), Resolver Group, Status, Description |
+| `applications-schema/00-object-type-attributes.csv` | Spec for the proposed **Applications** schema (6 attributes) |
+| `applications-schema/01-applications.csv` | Import file, generated |
+| `integrations-schema/00-object-type-attributes.csv` | Spec for the **Integrations** schema (26 attributes, 21 straight from the SOT) |
+| `integrations-schema/01-integrations.csv` | Import file, generated |
+| [`../../scripts/sot-initial-load.py`](../../scripts/sot-initial-load.py) | Generates the two import files from the SOT and the scope files. Run once. |
+| [`../../scripts/preview-assets-graph.py`](../../scripts/preview-assets-graph.py) | Offline check of the import files, and a text view of the graph |
+| [`../../scripts/test-assets-lookup.py`](../../scripts/test-assets-lookup.py) | Read-only check against your Assets workspace |
 
-## The model
+Demo scope: the 4 `ETL - DXMULTI-0001` flows and the 2 applications they connect, Technology One (SM)
+and EDW.
 
-```
-Team ◀─Owned by── Business Service ◀─Part of── Application ◀─Connects to── Connector ──Runs on─▶ Integration Platform
-                                                   ▲  ▲                         ▲                       ▲
-                                     Reads from ───┘  └─── Writes to            │ Uses                  │ Runs on
-                                                   Integration ─────────────────┴───────────────────────┘
-                                                        ▲
-                                                        └── Called by ── Integration Component (one per data entity)
-```
+## Placeholder standards (rename freely)
 
-| Object type | Why it exists | Key attributes |
+| Standard | Placeholder | Notes |
 |---|---|---|
-| **Team** | Routing and P1 escalation | Assignment group, chat channel, on-call rotation, escalation manager |
-| **Business Service** | Business impact and domain | Domain, SOT subdomain, criticality, owner |
-| **Integration Platform** | One root cause for every flow on it, e.g. a Boomi Atom outage | Platform type, host, hosting, owner |
-| **Application** | Source and target systems | Monitoring Job, owner, vendor, vendor support, hosting, support hours, status page, tier |
-| **Connector** | A shared dependency. A broken credential or endpoint looks like a target outage to every flow that uses it. | Type, connects to, platform, endpoint, auth type, credential owner, **credential expiry** |
-| **Integration** | The monitored flow | Integration ID, Monitoring Job, source/target, platform, **connectors (multi)**, schedule (interval, active window, timezone), expected volume, status, legacy, log links, repo, SOT confidence, tier |
-| **Integration Component** | Shows which data goes stale | Data entity, called by, connectors |
+| Schema names | `Integrations`, `Applications` | Set `ASSETS_INTEGRATION_SCHEMA` / `ASSETS_APPLICATION_SCHEMA` for the test if renamed |
+| Object types | `Integration`, `Application` | `Application` is the usual CMDB term, which makes adoption easier |
+| Object label / lookup key | `Name` (unique) | Integration Name = the SOT name = the Boomi process name. Alerts carry it as `ci_name`. |
+| Attribute naming | SOT column names verbatim (`Legacy (Y/N)`, `Git hub location`…) | Rename to house style later; only the import mapping changes |
+| Resolver group | `Resolver Group`, type **Group** | Values must be existing Jira groups. Placeholders: `Current Students`, `Data Squad`. |
+| Lifecycle | `Status`, Assets built-in **Status** type: `Production`, `Production - To Retire`, `Development`, `Retired` | The SOT's values; map them to the organisation's lifecycle later |
+| Reference types | `Reads from` (Source System), `Writes to` (Target System) | Give *Writes to* a distinct colour; it shows the blast radius in the graph view |
+| Name variants | `Aliases` on Application | Used only by the initial load to resolve SOT spellings (`EDW (SVC_IDM)` → EDW) |
+| Multi-value text | ` \| ` separator (Connectors) | Kept as text, verbatim from the SOT |
 
-### Layered root cause
+## The schemas
 
-With platforms and connectors in the graph, Keep can identify the narrowest shared cause behind a
-set of failing flows:
+**Applications** (proposed): `Name`, `Description`, `Aliases`, `Resolver Group`, `Status`, `Hosting`.
 
-| Pattern | Root CI | Ticket goes to |
-|---|---|---|
-| Every flow on the Boomi Atom fails | Integration Platform | Integration & Platforms |
-| Only flows using one connector fail, e.g. with auth errors | Connector | Credential owner / connected application's owner |
-| `up{job="lms"} == 0` plus target errors on its flows | Application EDW | Data Squad |
-| One flow fails alone | Integration | Current Students |
+**Integrations**:
+- **SOT columns, verbatim:** Status, Platform, Method, Process Type, Integration Pattern, Schedule,
+  Frequency, Volume per execution (MB), Volume per week (MB), Domain, Subdomain, Source Hosting,
+  Target Hosting, Security, Legacy (Y/N), Log Source, Info Source, Source Confidence, Connectors,
+  Git hub location, Notes.
+- **References:** **Source System** and **Target System**, both pointing to Applications.
+- **Additions:** Name, Description, Resolver Group.
 
-Use these lookups for the blast radius:
-- `objectType = "Integration" AND "Target Application" = "EDW"` gives the flows that write to an application.
-- `objectType = "Integration" AND "Connectors" = "CONN - Data Warehouse (EDW) DB"` gives the flows that share a connector.
-- `objectType = "Integration Component" AND "Called By" = "<flow>"` gives the data entities a failed flow leaves stale.
+Left out of the Integration schema:
+- the SOT's unnamed column and its `Volume` column, which are empty;
+- Source/Target System as text, because they became references.
 
-### Schedule-aware alerting
-
-The real DXMULTI-0001 flows run **every 5 minutes, 07:00–21:59 (Australia/Sydney)**. Alert rules
-and Keep should use **Interval Minutes** and **Active Window Start/End**:
-- no "stale" alerts outside the window;
-- staleness threshold ≈ 2 × interval.
-
-The POC workers run every 30 s around the clock, so these values describe production, not the mock.
-
-## Names vs. monitoring keys
-
-Object names match the SOT exactly, so the two can be joined. **Monitoring Job** stays equal to the
-Prometheus `job` label that the POC stack emits:
-
-| Assets object | Monitoring Job | POC service |
-|---|---|---|
-| Technology One (SM) | `sis` | `sis` (mock source) |
-| EDW | `lms` | `lms` (mock target) |
-| ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student | `sync-students` | `sync-students` |
-| ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum | `sync-courses` | `sync-courses` |
-| ETL - DXMULTI-0001 : AppEvents from SMS to EDW | `sync-staff` | `sync-staff` (stands in for the general flow) |
-| ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Study Plan | *(empty)* | not in the POC |
-
-Monitoring Job is optional on Integrations and Platforms, and unique wherever it is set. The
-validator also checks it is unique across all object types, because Keep's lookup searches the
-whole schema. When alerts come from the real systems, set it to the real `job` labels.
-
-## Where the values came from: confirm before importing
-
-| Status | Values |
-|---|---|
-| **From the SOT** | Integration names, ID, platform, process type, pattern, method, schedule, volume/week, status, legacy, log source, SOT confidence; connector names and which flow/module uses which; module data entities; domain and subdomain |
-| **Provided by you** | Team names, application and flow owners, business service name, flow descriptions |
-| **Confirmed** | Which ETL flow calls which RPS module (**Called By**), grouped by data entity |
-| **Inferred: please confirm** | The Study Plan description, which I drafted. The connector types. Timezone Australia/Sydney. |
-| **Placeholders** | Team emails and assignment groups, and the *Integration & Platforms* team as the Boomi owner |
-| **Left empty, to fill in** | Chat channels, on-call rotations, escalation managers (User attributes, set in the UI), vendor support contacts, hosting, support hours, status pages, connector endpoints, auth types, credential owners and expiry, Kibana and Boomi Process Reporting links, repo URLs |
-
-Known gaps:
-- **Subdomain mismatch:** the SOT says **Student Enrolment** but the business service is named
-  *Student Administration / Core Data*. It's kept in `SOT Subdomain` until one is chosen.
-- **Omitted connectors:** `RPS … StudentStudyPackageState` also uses `CONN - Dynamics 365 OData` and
-  `CONN - Dynamics 365 HTTP`. They're left out until a Dynamics 365 application and owner are added.
-- **No owners in the SOT:** the SOT has no owner column, and 65 production rows have no source or target.
-
-## 1. Create the schema and object types (UI)
-
-CSV import loads *objects*. Object types and attributes are defined in the schema first:
-
-1. **Assets → Create schema →** empty schema named **`Observability POC`**. If you use a different
-   name, set `ASSETS_SCHEMA` for the test script.
-2. **Schema settings → Reference types:** create `Owned by`, `Part of`, `Reads from`, `Writes to`,
-   `Connects to`, `Runs on`, `Uses`, `Called by`. Give *Writes to* and *Uses* distinct colours, so the
-   blast radius stands out in the graph view.
-3. Create the object types **in this order**, because an object reference needs its target type to
-   exist first: **Team → Business Service → Integration Platform → Application → Connector →
-   Integration → Integration Component**.
-4. Add the attributes from `00-object-type-attributes.csv`:
-   - `Name` already exists and is the label attribute.
-   - **Monitoring Job**: Text, **Unique**. Required on Application only.
-   - Object attributes: pick the referenced object type and reference type. For **Cardinality =
-     Multiple** (`Connectors`), set the attribute's maximum to unlimited.
-   - Select attributes: add the listed options.
-   - Integer / Float / Date: use those Assets types. For **Time (HH:MM)**, use Text.
-
-## 2. Import the objects (CSV import)
-
-**Schema → Import → Create import → CSV import.** Create one import mapping per file and run them in
-file order (01 → 07).
-
-- Delimiter `,`, encoding UTF-8, first row is the header. Map each column to the attribute with the same name.
-- Set **identifier = `Name`** for every mapping, so re-running an import updates objects instead of
-  duplicating them.
-- **Reference columns** hold the referenced object's **Name**. Map them with the AQL placeholder
-  `Name = ${<column>}` against the referenced type. For example, `Owner Team` uses `Name = ${Owner Team}`
-  against Team.
-- **Multi-value cells** (`Connectors`) separate values with ` | `. Set the import's multi-value
-  separator to `|` and check it on one Integration first. If your Assets version doesn't split the
-  cell, import the first connector and add the rest in the UI, or ask me for a one-row-per-reference
-  variant.
-
-Run the offline check first:
+## Initial load (once)
 
 ```bash
+python3 scripts/sot-initial-load.py "Integrations SOT(Integrations).csv"
 python3 scripts/preview-assets-graph.py
 ```
 
-It validates columns, required and unique values, select options, Integer/Float/Date/Time/URL values,
-every reference including multi-value ones, import order, and Monitoring Job uniqueness across types.
-Then it prints the graph. It currently reports 31 objects and 76 references.
+What the load script does:
+- copies each scoped integration's SOT row verbatim;
+- resolves Source/Target System through Aliases to a canonical application, failing if any name can't be resolved;
+- blanks non-numeric volumes (`No Data`);
+- adds Resolver Group and Description from the scope file.
 
-## 3. Test the lookups
+The validator then checks columns, required and unique values, Select/Status options, numeric values,
+and the cross-schema references. Currently: 6 objects, 8 references.
 
-Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens. Use a service
-account with Assets access to the schema, the same account Keep will use. Add the values to `.env`
-(gitignored) or export them:
+After importing, manage the objects in Assets. Re-running the load with identifier = `Name` would
+overwrite edits made in Assets, so only re-run it to add **new** integrations, with a scope file
+listing just those.
+
+## Create the schemas and import (UI)
+
+1. **Create schema `Applications`**:
+   - object type `Application`;
+   - attributes from `applications-schema/00-object-type-attributes.csv`, with Resolver Group as
+     type **Group** and Status as type **Status** (create the four statuses).
+2. **Create schema `Integrations`**:
+   - object type `Integration`;
+   - attributes from `integrations-schema/00-object-type-attributes.csv`;
+   - for **Source System** and **Target System**, choose type *Object*, schema `Applications`, type
+     `Application`, and the reference types `Reads from` and `Writes to`.
+3. **Make sure the resolver groups exist in Jira** (`Current Students`, `Data Squad`, or your real
+   group names). Group values that don't match an existing group are not imported.
+4. **Import `applications-schema/01-applications.csv` first, then `integrations-schema/01-integrations.csv`.**
+   - CSV import, identifier = `Name`.
+   - Reference columns hold the application's Name: map them with `Name = ${Source System}` /
+     `Name = ${Target System}` against `Application`.
+
+## Test the lookups
+
+Use a service account with access to both schemas, the same account Keep will use. Put the values in
+`.env` (gitignored):
 
 ```bash
 JIRA_SITE=https://<your-site>.atlassian.net
 JIRA_EMAIL=svc-observability@example.com
 JIRA_API_TOKEN=<token>
-# ASSETS_SCHEMA="Observability POC"
 ```
 
 ```bash
 python3 scripts/test-assets-lookup.py
 ```
 
-The script only reads, never writes. The Assets workspace ID is discovered automatically, or set
-`ASSETS_WORKSPACE_ID`. For Jira Data Center, set `JIRA_DEPLOYMENT=datacenter` and `JIRA_PAT`; older
-Insight versions may need `ASSETS_API_BASE=https://<host>/rest/insight/1.0`. Exit codes: `0` passed,
-`1` a check failed, `2` configuration, auth or connectivity error.
+It checks that:
+1. each object is found by Name in its schema, with the expected Resolver Group, Status and Source/Target System;
+2. the blast radius is complete (all 4 flows write to EDW);
+3. every `ci_name` in `observability/prometheus/prometheus.yml` resolves to a CI;
+4. the alerts of an EDW outage collapse to root CI **EDW**, Resolver Group **Data Squad**.
 
-It checks, using the CSVs as the expected state:
-
-1. Each Monitoring Job (`sis`, `lms`, `sync-students`, `sync-courses`, `sync-staff`) returns exactly
-   one object, with the expected type, name, owner, business service, integration ID/key,
-   source/target, platform and connector set. Study Plan is skipped because it has no Monitoring Job.
-2. Blast radius by target application: all 4 flows write to EDW. Blast radius by connector: each
-   connector is used by the expected flows, e.g. the EDW DB connector by all 4.
-3. Correlation: alerts from `lms` plus the three monitored flows all resolve to root CI **EDW**, owned
-   by **Data Squad**.
+The script is read-only. Exit codes: `0` passed, `1` a check failed, `2` configuration or connection
+error. For Jira Data Center, set `JIRA_DEPLOYMENT=datacenter` and `JIRA_PAT`.
 
 ## How correlation uses this
 
-| Alert | Keep looks up | Root CI rule | Root CI |
+| Alert (`ci_name`) | Found in | Root CI rule | Root CI → ticket goes to |
 |---|---|---|---|
-| `up{job="lms"} == 0` | `"Monitoring Job" = "lms"` → Application EDW | an Application is its own root | EDW |
-| `integration_last_run_success == 0`, `job="sync-students"` | → AppEvents - Student | `failed_system=lms` → the Application with Monitoring Job `lms` | EDW |
-| the same for `sync-courses` and `sync-staff` | → Curriculum, general flow | same | EDW |
+| `EDW` (`up{job="lms"} == 0`) | Applications | an Application is its own root | EDW → **Data Squad** |
+| `ETL - DXMULTI-0001 : … - Student` (failed run) | Integrations | target-side error → its **Target System** | EDW → **Data Squad** |
+| the Curriculum and general flows | Integrations | same | EDW → **Data Squad** |
 
-All four alerts become one incident, routed to the root CI's **Owner Team** (Data Squad). Current
-Students owns the flows and the source system, so it is informed rather than assigned.
+All four alerts become one incident, routed to Data Squad. The integrations' own Resolver Group
+(Current Students) is informed. The blast radius
+(`objectType = Integration AND "Target System" = "EDW"`) also lists **Study Plan**, which isn't
+monitored in the POC but is affected. If the source fails instead (a `source_*` error), the root is
+Technology One (SM) → Current Students.
 
-The ticket can include:
-- the blast radius: all 4 flows, including the unmonitored Study Plan;
-- the stale data entities, from the Integration Components;
-- the shared connectors, with credential owner and expiry;
-- the platform;
-- log links and runbooks.
+## Adopting the CMDB's application schema
 
-If the source fails instead (`failed_system=sis`), the root is Technology One (SM) and the ticket goes
-to Current Students.
+**If the CMDB team already has an application object type:**
+1. Find their objects for Technology One (SM) and EDW. Note any name differences, and add them to
+   `Aliases` if you need them for re-mapping.
+2. In the Integrations schema, change **Source System** and **Target System** to reference *their*
+   object type. The attribute names and the Integration objects stay the same.
+3. Re-map each integration's references to their objects, either through a CSV re-import of only
+   `Name, Source System, Target System` with their names, or by hand for a few objects.
+4. Use their resolver/support group for applications, and retire the proposed Applications schema.
 
-The Assets API identifies attributes by numeric ID in its responses. The script resolves the names,
-either from the response or from `GET /objecttype/{id}/attributes`. Keep's HTTP step needs the same
-mapping, or a thin adapter that returns flat JSON (`owner`, `root_ci`, `runbook_url`, …).
+**If they don't have one:** hand over the Applications schema as a starting point. They rename the
+placeholders to their standard; your Integrations schema keeps working.
+
+## Deliberately left out (add only if needed)
+
+- **The 15 `RPS - DXMULTI-0001 : AppEvent - <Entity>` modules.**
+  - These are on-demand Boomi modules, one per data entity, called by the ETL flows. They have no
+    source or target system in the SOT.
+  - Their failures surface as a failed parent flow. Linking them to their parent would need a field
+    that isn't in the SOT.
+- **Connectors as objects, platforms, contacts, credentials, vendor details.**
+  - Connectors stay as SOT text.
+  - People and on-call come from the Resolver Group, plus JSM on-call schedules for that group.
+- **Open data points:**
+  - the subdomain naming (the SOT says *Student Enrolment*);
+  - the drafted Study Plan description;
+  - the real Jira group names behind the two placeholders.
