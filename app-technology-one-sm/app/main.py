@@ -1,4 +1,4 @@
-"""Mock Student Information System (Application A): authoritative source of
+"""Mock Technology One (SM), the student management system (source): authoritative source of
 synthetic students, staff and courses."""
 
 from contextlib import asynccontextmanager
@@ -60,12 +60,12 @@ async def lifespan(_: FastAPI):
     open_database()
     apply_migrations()
     seed_if_empty()
-    log.info("sis started")
+    log.info("technology-one-sm started")
     yield
     pool.close()
 
 
-app = FastAPI(title="Mock SIS", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Mock Technology One (SM)", version="1.0.0", lifespan=lifespan)
 install_error_handlers(app)
 install_http_metrics(app)
 

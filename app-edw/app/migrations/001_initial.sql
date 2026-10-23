@@ -1,5 +1,5 @@
--- Records are keyed by the immutable SIS source ID. `updated_at` is the
--- source system's timestamp; `synced_at` is when the LMS last changed the row.
+-- Records are keyed by the immutable Technology One (SM) source ID. `updated_at` is the
+-- source system's timestamp; `synced_at` is when the EDW last changed the row.
 
 CREATE TABLE IF NOT EXISTS students (
     student_id  TEXT PRIMARY KEY,

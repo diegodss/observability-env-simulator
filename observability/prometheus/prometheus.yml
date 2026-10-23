@@ -10,23 +10,23 @@ rule_files:
   - /etc/prometheus/rules.yml
 
 scrape_configs:
-  - job_name: sis
+  - job_name: technology-one-sm
     static_configs:
-      - targets: ["sis:8000"]
+      - targets: ["technology-one-sm:8000"]
         labels: {display_name: "Technology One (SM)", ci_name: "Technology One (SM)"}
-  - job_name: lms
+  - job_name: edw
     static_configs:
-      - targets: ["lms:8000"]
+      - targets: ["edw:8000"]
         labels: {display_name: "EDW", ci_name: "EDW"}
-  - job_name: sync-students
+  - job_name: appevents-student
     static_configs:
-      - targets: ["sync-students:9100"]
+      - targets: ["appevents-student:9100"]
         labels: {display_name: "AppEvents - Student", ci_name: "ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student"}
-  - job_name: sync-courses
+  - job_name: appevents-curriculum
     static_configs:
-      - targets: ["sync-courses:9100"]
+      - targets: ["appevents-curriculum:9100"]
         labels: {display_name: "AppEvents - Curriculum", ci_name: "ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum"}
-  - job_name: sync-staff
+  - job_name: appevents-general
     static_configs:
-      - targets: ["sync-staff:9100"]
-        labels: {display_name: "AppEvents (General)", ci_name: "ETL - DXMULTI-0001 : AppEvents from SMS to EDW"}
+      - targets: ["appevents-general:9100"]
+        labels: {display_name: "AppEvents - General", ci_name: "ETL - DXMULTI-0001 : AppEvents from SMS to EDW"}

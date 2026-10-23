@@ -11,7 +11,7 @@ It checks that:
      with the expected Resolver Group, Status and (for integrations) Source/Target System,
   2. the blast-radius query (integrations whose Target System is X) is complete,
   3. every ci_name in prometheus.yml resolves to a CI, and the alerts of an outage
-     of job=lms all resolve to the same root CI, whose Resolver Group gets the ticket,
+     of job=edw all resolve to the same root CI, whose Resolver Group gets the ticket,
   4. if Connector objects are in use (integrations-schema/01-connectors.csv exists):
      each connector is found, linked to the right integrations, and can act as root CI.
 
@@ -230,15 +230,15 @@ def main() -> int:
     for job, name in labels.items():
         report.check(name in found, f"job={job} ci_name", f"'{name}'" + ("" if name in found else " not found in Assets"))
     outage = [job for job, name in labels.items()
-              if job == "lms" or (name in found and first(found[name], "Target System") == labels.get("lms"))]
+              if job == "edw" or (name in found and first(found[name], "Target System") == labels.get("edw"))]
     roots = {}
     for job in outage:
         obj = found.get(labels[job])
         if obj:
             roots[job] = first(obj, "Target System") if obj["type"] == "Integration" else obj["label"]
-            print(f"      alert job={job:<14} -> root CI {roots[job]}")
+            print(f"      alert job={job:<22} -> root CI {roots[job]}")
     if report.check(len(roots) == len(outage) and len(set(roots.values())) == 1,
-                    f"{len(outage)} alerts of an outage of job=lms collapse to one root CI", ", ".join(sorted(set(roots.values())))):
+                    f"{len(outage)} alerts of an outage of job=edw collapse to one root CI", ", ".join(sorted(set(roots.values())))):
         root = found.get(next(iter(roots.values())))
         group = first(root, "Resolver Group") if root else ""
         report.check(bool(group), "root CI has a Resolver Group to route the ticket to", group)

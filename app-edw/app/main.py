@@ -1,4 +1,4 @@
-"""Mock Learning Management System (Application B): receives replicated
+"""Mock EDW, the enterprise data warehouse (target): receives replicated
 students, staff and courses through idempotent bulk-upsert endpoints."""
 
 from contextlib import asynccontextmanager
@@ -79,7 +79,7 @@ RESOURCES = {
 }
 
 UPSERTED = Counter(
-    "lms_bulk_upsert_records_total",
+    "edw_bulk_upsert_records_total",
     "Records processed by bulk upsert endpoints",
     ["app", "collection", "result"],
 )
@@ -89,12 +89,12 @@ UPSERTED = Counter(
 async def lifespan(_: FastAPI):
     open_database()
     apply_migrations()
-    log.info("lms started")
+    log.info("edw started")
     yield
     pool.close()
 
 
-app = FastAPI(title="Mock LMS", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Mock EDW", version="1.0.0", lifespan=lifespan)
 install_error_handlers(app)
 install_http_metrics(app)
 

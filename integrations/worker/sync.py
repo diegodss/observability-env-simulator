@@ -1,5 +1,6 @@
-"""Core of one integration run: read one collection from the SIS, push it to
-the matching LMS bulk endpoint, and classify any failure by the system at fault."""
+"""Core of one integration run: read one collection from Technology One (SM),
+push it to the matching EDW bulk endpoint, and classify any failure by the
+system at fault."""
 
 import os
 import time
@@ -7,50 +8,53 @@ from dataclasses import dataclass
 
 import httpx
 
-SOURCE = "sis"
-TARGET = "lms"
+SOURCE = "technology-one-sm"
+TARGET = "edw"
 
+# Each AppEvents flow (the `integration` label) and the mock collection it syncs.
+# The general flow stands in for shared reference data using the mock staff list.
+COLLECTIONS = {"student": "students", "curriculum": "courses", "general": "staff"}
 ID_FIELDS = {"students": "student_id", "staff": "staff_id", "courses": "course_id"}
 
 
 @dataclass(frozen=True)
 class Config:
     integration: str
-    sis_base_url: str = "http://sis:8000"
-    lms_base_url: str = "http://lms:8000"
+    source_base_url: str = "http://technology-one-sm:8000"
+    target_base_url: str = "http://edw:8000"
     api_token: str = ""
     interval_seconds: float = 30.0
     timeout_seconds: float = 5.0
     max_retries: int = 1
     retry_backoff_seconds: float = 1.0
     metrics_port: int = 9100
-    sis_startup_wait_seconds: float = 60.0
+    source_startup_wait_seconds: float = 60.0
 
     @property
     def service(self) -> str:
-        return f"sync-{self.integration}"
+        return f"appevents-{self.integration}"
 
     @classmethod
     def from_env(cls) -> "Config":
         integration = os.environ.get("INTEGRATION", "")
-        if integration not in ID_FIELDS:
-            raise SystemExit(f"INTEGRATION must be one of {sorted(ID_FIELDS)}, got {integration!r}")
+        if integration not in COLLECTIONS:
+            raise SystemExit(f"INTEGRATION must be one of {sorted(COLLECTIONS)}, got {integration!r}")
         return cls(
             integration=integration,
-            sis_base_url=os.getenv("SIS_BASE_URL", cls.sis_base_url).rstrip("/"),
-            lms_base_url=os.getenv("LMS_BASE_URL", cls.lms_base_url).rstrip("/"),
+            source_base_url=os.getenv("SOURCE_BASE_URL", cls.source_base_url).rstrip("/"),
+            target_base_url=os.getenv("TARGET_BASE_URL", cls.target_base_url).rstrip("/"),
             api_token=os.getenv("API_TOKEN", ""),
             interval_seconds=float(os.getenv("SYNC_INTERVAL_SECONDS", "30")),
             timeout_seconds=float(os.getenv("HTTP_TIMEOUT_SECONDS", "5")),
             max_retries=int(os.getenv("HTTP_MAX_RETRIES", "1")),
             retry_backoff_seconds=float(os.getenv("HTTP_RETRY_BACKOFF_SECONDS", "1")),
             metrics_port=int(os.getenv("METRICS_PORT", "9100")),
-            sis_startup_wait_seconds=float(os.getenv("SIS_STARTUP_WAIT_SECONDS", "60")),
+            source_startup_wait_seconds=float(os.getenv("SOURCE_STARTUP_WAIT_SECONDS", "60")),
         )
 
 
 class SyncError(Exception):
-    """A classified run failure. `system` is the system at fault (sis or lms)."""
+    """A classified run failure. `system` is the system at fault (SOURCE or TARGET)."""
 
     def __init__(self, error_type: str, message: str, *, system: str, operation: str,
                  http_status: int | None = None, retryable: bool = False):
@@ -109,12 +113,12 @@ def request_with_retry(client: httpx.Client, config: Config, method: str, url: s
 
 
 def sync_once(client: httpx.Client, config: Config, on_attempt_failed=None) -> dict:
-    """Run one sync. Returns the LMS upsert summary; raises SyncError on failure."""
-    collection = config.integration
+    """Run one sync. Returns the target's upsert summary; raises SyncError on failure."""
+    collection = COLLECTIONS[config.integration]
     id_field = ID_FIELDS[collection]
 
     response = request_with_retry(
-        client, config, "GET", f"{config.sis_base_url}/api/{collection}",
+        client, config, "GET", f"{config.source_base_url}/api/{collection}",
         system=SOURCE, operation=f"read {collection} from {SOURCE}", on_attempt_failed=on_attempt_failed,
     )
     try:
@@ -127,7 +131,7 @@ def sync_once(client: httpx.Client, config: Config, on_attempt_failed=None) -> d
 
     headers = {"Authorization": f"Bearer {config.api_token}"} if config.api_token else {}
     response = request_with_retry(
-        client, config, "PUT", f"{config.lms_base_url}/api/{collection}/bulk",
+        client, config, "PUT", f"{config.target_base_url}/api/{collection}/bulk",
         system=TARGET, operation=f"upsert {collection} into {TARGET}", on_attempt_failed=on_attempt_failed,
         json={"records": items}, headers=headers,
     )

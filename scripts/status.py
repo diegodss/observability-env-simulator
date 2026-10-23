@@ -7,12 +7,12 @@ import re
 import urllib.error
 import urllib.request
 
-SIS = f"http://127.0.0.1:{os.getenv('SIS_HOST_PORT', '8001')}"
-LMS = f"http://127.0.0.1:{os.getenv('LMS_HOST_PORT', '8002')}"
+SOURCE = f"http://127.0.0.1:{os.getenv('SOURCE_HOST_PORT', '8001')}"
+TARGET = f"http://127.0.0.1:{os.getenv('TARGET_HOST_PORT', '8002')}"
 WORKERS = {
-    "students": os.getenv("SYNC_STUDENTS_METRICS_PORT", "9101"),
-    "staff": os.getenv("SYNC_STAFF_METRICS_PORT", "9102"),
-    "courses": os.getenv("SYNC_COURSES_METRICS_PORT", "9103"),
+    "student": os.getenv("APPEVENTS_STUDENT_METRICS_PORT", "9101"),
+    "general": os.getenv("APPEVENTS_GENERAL_METRICS_PORT", "9102"),
+    "curriculum": os.getenv("APPEVENTS_CURRICULUM_METRICS_PORT", "9103"),
 }
 
 
@@ -34,24 +34,24 @@ def metric(text: str, name: str, **labels) -> str:
 
 
 print("Applications")
-for name, base in (("sis", SIS), ("lms", LMS)):
+for name, base in (("technology-one-sm", SOURCE), ("edw", TARGET)):
     status, _ = fetch(f"{base}/health/ready")
     counts = []
     for collection in ("students", "staff", "courses"):
         code, body = fetch(f"{base}/api/{collection}")
         counts.append(f"{collection}={json.loads(body)['count'] if code == 200 else '-'}")
     state = "READY" if status == 200 else f"DOWN ({status or 'unreachable'})"
-    print(f"  {name:<4} {state:<22} {' '.join(counts)}")
+    print(f"  {name:<18} {state:<22} {' '.join(counts)}")
 
 print("\nIntegrations")
-print(f"  {'name':<9} {'last_ok':<8} {'success':<8} {'failure':<8} {'consec_fail':<12} last_error")
+print(f"  {'name':<11} {'last_ok':<8} {'success':<8} {'failure':<8} {'consec_fail':<12} last_error")
 for integration, port in WORKERS.items():
     status, text = fetch(f"http://127.0.0.1:{port}/metrics")
     if status != 200:
-        print(f"  {integration:<9} metrics unreachable ({text})")
+        print(f"  {integration:<11} metrics unreachable ({text})")
         continue
     errors = re.findall(r'integration_run_failures_total\{error_type="([^"]+)",failed_system="([^"]+)"', text)
-    print(f"  {integration:<9} {metric(text, 'integration_last_run_success'):<8}"
+    print(f"  {integration:<11} {metric(text, 'integration_last_run_success'):<8}"
           f" {metric(text, 'integration_runs_total', outcome='success'):<8}"
           f" {metric(text, 'integration_runs_total', outcome='failure'):<8}"
           f" {metric(text, 'integration_consecutive_failures'):<12}"

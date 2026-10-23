@@ -183,7 +183,7 @@ error. For Jira Data Center, set `JIRA_DEPLOYMENT=datacenter` and `JIRA_PAT`.
 
 | Alert (`ci_name`) | Found in | Root CI rule | Root CI → ticket goes to |
 |---|---|---|---|
-| `EDW` (`up{job="lms"} == 0`) | Applications | an Application is its own root | EDW → **Data Squad** |
+| `EDW` (`up{job="edw"} == 0`) | Applications | an Application is its own root | EDW → **Data Squad** |
 | `ETL - DXMULTI-0001 : … - Student` (failed run) | Integrations | target-side error → its **Target System** | EDW → **Data Squad** |
 | the Curriculum and general flows | Integrations | same | EDW → **Data Squad** |
 

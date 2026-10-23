@@ -4,26 +4,26 @@ groups:
   - name: education-integration-poc
     rules:
       - alert: TargetSystemUnavailable
-        expr: up{job="lms"} == 0
+        expr: up{job="edw"} == 0
         for: 20s
-        labels: {severity: critical, service: lms}
+        labels: {severity: critical, service: edw}
         annotations:
           summary: "{{ $labels.display_name }} cannot be scraped"
       - alert: SourceSystemUnavailable
-        expr: up{job="sis"} == 0
+        expr: up{job="technology-one-sm"} == 0
         for: 20s
-        labels: {severity: critical, service: sis}
+        labels: {severity: critical, service: technology-one-sm}
         annotations:
           summary: "{{ $labels.display_name }} cannot be scraped"
       - alert: AppUnhealthy
-        expr: app_up{app=~"sis|lms"} == 0
+        expr: app_up{app=~"technology-one-sm|edw"} == 0
         for: 20s
         labels: {severity: warning}
         annotations:
           summary: "{{ $labels.app }} is running but its database is unreachable"
       - alert: IntegrationLastRunFailed
         expr: integration_last_run_success == 0 and on(integration) integration_runs_total{outcome="failure"} > 0
-        labels: {severity: critical, dependency: lms}
+        labels: {severity: critical, dependency: edw}
         annotations:
           summary: "{{ $labels.display_name }}: latest run failed (target {{ $labels.target }})"
       - alert: IntegrationStale

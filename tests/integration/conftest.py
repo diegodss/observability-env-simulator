@@ -15,13 +15,16 @@ import requests
 from prometheus_client.parser import text_string_to_metric_families
 
 ROOT = Path(__file__).resolve().parents[2]
-SIS = f"http://127.0.0.1:{os.getenv('SIS_HOST_PORT', '8001')}"
-LMS = f"http://127.0.0.1:{os.getenv('LMS_HOST_PORT', '8002')}"
+SOURCE = f"http://127.0.0.1:{os.getenv('SOURCE_HOST_PORT', '8001')}"
+TARGET = f"http://127.0.0.1:{os.getenv('TARGET_HOST_PORT', '8002')}"
 WORKER_PORTS = {
-    "students": int(os.getenv("SYNC_STUDENTS_METRICS_PORT", "9101")),
-    "staff": int(os.getenv("SYNC_STAFF_METRICS_PORT", "9102")),
-    "courses": int(os.getenv("SYNC_COURSES_METRICS_PORT", "9103")),
+    "student": int(os.getenv("APPEVENTS_STUDENT_METRICS_PORT", "9101")),
+    "general": int(os.getenv("APPEVENTS_GENERAL_METRICS_PORT", "9102")),
+    "curriculum": int(os.getenv("APPEVENTS_CURRICULUM_METRICS_PORT", "9103")),
 }
+SOURCE_SYSTEM, TARGET_SYSTEM = "technology-one-sm", "edw"
+# integration label -> the mock collection that AppEvents flow syncs
+COLLECTIONS = {"student": "students", "curriculum": "courses", "general": "staff"}
 ID_FIELDS = {"students": "student_id", "staff": "staff_id", "courses": "course_id"}
 INTEGRATIONS = list(WORKER_PORTS)
 TOKEN = os.getenv("API_TOKEN", "dev-poc-token")
@@ -34,7 +37,8 @@ BACKOFF = float(os.getenv("HTTP_RETRY_BACKOFF_SECONDS", "1"))
 RUN_BUDGET = 2 * ((RETRIES + 1) * HTTP_TIMEOUT + RETRIES * BACKOFF)
 DEADLINE = 2 * INTERVAL + RUN_BUDGET + 10
 
-ALL_SERVICES = ["sis-db", "lms-db", "sis", "lms", "sync-students", "sync-staff", "sync-courses"]
+ALL_SERVICES = ["technology-one-sm-db", "edw-db", "technology-one-sm", "edw",
+                "appevents-student", "appevents-general", "appevents-curriculum"]
 
 
 def compose(*args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -67,7 +71,7 @@ def scrape(port: int) -> dict[tuple, float]:
 
 
 def worker_metric(integration: str, name: str, **extra) -> float | None:
-    labels = {"integration": integration, "source": "sis", "target": "lms", **extra}
+    labels = {"integration": integration, "source": SOURCE_SYSTEM, "target": TARGET_SYSTEM, **extra}
     return scrape(WORKER_PORTS[integration]).get((name, tuple(sorted(labels.items()))))
 
 
@@ -112,7 +116,7 @@ def run_logs(service: str, since: float) -> list[dict]:
 
 
 def wait_for_stack(timeout: float = DEADLINE + 60) -> None:
-    wait_until(lambda: is_ready(SIS) and is_ready(LMS), timeout, message="SIS and LMS readiness")
+    wait_until(lambda: is_ready(SOURCE) and is_ready(TARGET), timeout, message="source and target readiness")
     for integration in INTEGRATIONS:
         wait_until(lambda: worker_metric(integration, "integration_last_run_success") == 1, timeout,
                    message=f"a successful {integration} run")

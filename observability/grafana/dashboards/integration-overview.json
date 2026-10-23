@@ -37,7 +37,7 @@
       "id": 2,
       "type": "stat",
       "title": "Technology One (SM)",
-      "description": "Prometheus scrape of the SIS mock (job=sis).",
+      "description": "Prometheus scrape of the Technology One (SM) mock (job=technology-one-sm).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -55,7 +55,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "up{job=\"sis\"}",
+          "expr": "up{job=\"technology-one-sm\"}",
           "legendFormat": "",
           "range": true
         }
@@ -127,7 +127,7 @@
       "id": 3,
       "type": "stat",
       "title": "EDW",
-      "description": "Prometheus scrape of the LMS mock (job=lms). DOWN = the outage root cause.",
+      "description": "Prometheus scrape of the EDW mock (job=edw). DOWN = the outage root cause.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -145,7 +145,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "up{job=\"lms\"}",
+          "expr": "up{job=\"edw\"}",
           "legendFormat": "",
           "range": true
         }
@@ -217,7 +217,7 @@
       "id": 4,
       "type": "stat",
       "title": "Student flow",
-      "description": "Latest run of sync-students.",
+      "description": "Latest run of appevents-student.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -235,7 +235,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "integration_last_run_success{integration=\"students\"}",
+          "expr": "integration_last_run_success{integration=\"student\"}",
           "legendFormat": "",
           "range": true
         }
@@ -307,7 +307,7 @@
       "id": 5,
       "type": "stat",
       "title": "Curriculum flow",
-      "description": "Latest run of sync-courses.",
+      "description": "Latest run of appevents-curriculum.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -325,7 +325,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "integration_last_run_success{integration=\"courses\"}",
+          "expr": "integration_last_run_success{integration=\"curriculum\"}",
           "legendFormat": "",
           "range": true
         }
@@ -397,7 +397,7 @@
       "id": 6,
       "type": "stat",
       "title": "General flow",
-      "description": "Latest run of sync-staff.",
+      "description": "Latest run of appevents-general.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -415,7 +415,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "integration_last_run_success{integration=\"staff\"}",
+          "expr": "integration_last_run_success{integration=\"general\"}",
           "legendFormat": "",
           "range": true
         }
@@ -518,7 +518,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "up{job=~\"sis|lms\"}",
+          "expr": "up{job=~\"technology-one-sm|edw\"}",
           "legendFormat": "{{display_name}} (system)",
           "range": true
         },
@@ -672,7 +672,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "Failures per minute, by error type and failed system",
-      "description": "From integration_run_failures_total. target_* @ lms = EDW was the problem; source_* @ sis = Technology One was.",
+      "description": "From integration_run_failures_total. target_* @ edw = EDW was the problem; source_* @ technology-one-sm = Technology One (SM) was.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

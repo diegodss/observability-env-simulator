@@ -47,7 +47,7 @@ def students():
             f"STU-{n:04d}",
             FIRST_NAMES[i % len(FIRST_NAMES)],
             LAST_NAMES[(i * 5) % len(LAST_NAMES)],
-            f"student{n:04d}@sis.example",
+            f"student{n:04d}@technology-one-sm.example",
             STUDENT_STATUSES[i % len(STUDENT_STATUSES)],
             SEED_TIMESTAMP,
         )
@@ -60,7 +60,7 @@ def staff():
             f"STF-{n:04d}",
             FIRST_NAMES[(i * 7 + 3) % len(FIRST_NAMES)],
             LAST_NAMES[(i * 3 + 1) % len(LAST_NAMES)],
-            f"staff{n:04d}@sis.example",
+            f"staff{n:04d}@technology-one-sm.example",
             DEPARTMENTS[i % len(DEPARTMENTS)],
             STAFF_STATUSES[i % len(STAFF_STATUSES)],
             SEED_TIMESTAMP,

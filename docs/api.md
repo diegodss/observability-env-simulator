@@ -1,15 +1,15 @@
 # API contract
 
 Both applications are FastAPI services; interactive OpenAPI docs are at
-`http://localhost:8001/docs` (SIS) and `http://localhost:8002/docs` (LMS).
-The contract below is what the sync workers depend on — a replacement LMS
-(e.g. Moodle behind an adapter) only needs to honour the LMS section.
+`http://localhost:8001/docs` (Technology One (SM) mock) and `http://localhost:8002/docs` (EDW mock).
+The contract below is what the AppEvents workers depend on. Either mock can be replaced by the real
+system, or by an adapter in front of it, that honours its section.
 
 ## Conventions
 
 - JSON in and out, UTF-8. Timestamps are ISO 8601 with offset, always UTC (`2026-01-01T00:00:00+00:00`).
-- Records are keyed by the **immutable SIS source ID** (`student_id`, `staff_id`, `course_id`).
-- Write endpoints (SIS `PATCH`, LMS bulk `PUT`) require `Authorization: Bearer <API_TOKEN>`
+- Records are keyed by the **immutable Technology One (SM) source ID** (`student_id`, `staff_id`, `course_id`).
+- Write endpoints (Technology One (SM) `PATCH`, EDW bulk `PUT`) require `Authorization: Bearer <API_TOKEN>`
   (default `dev-poc-token`; set `API_TOKEN=` empty to disable). Reads are open.
 - Errors always use one envelope:
 
@@ -23,7 +23,7 @@ The contract below is what the sync workers depend on — a replacement LMS
 | 401 | `unauthorized` | missing/wrong bearer token on a write endpoint |
 | 404 | `not_found` | unknown record or route |
 | 405 | `method_not_allowed` | wrong method |
-| 409 | `conflict` | SIS PATCH would duplicate a unique `email`/`code` |
+| 409 | `conflict` | Technology One (SM) PATCH would duplicate a unique `email`/`code` |
 | 422 | `validation_error` | malformed body, unknown fields, wrong types, bad enum, duplicate IDs in a bulk payload; `details` lists each problem |
 | 503 | `database_unavailable` | the app's own database is unreachable |
 | 500 | `internal_error` | unexpected error |
@@ -37,9 +37,9 @@ The contract below is what the sync workers depend on — a replacement LMS
 | courses | `course_id`, `code`, `title`, `department`, `status` (`active` `inactive` `archived`), `updated_at` |
 
 Seed IDs: `STU-0001`…`STU-0024`, `STF-0001`…`STF-0012`, `CRS-0001`…`CRS-0012`. All names are
-NATO-alphabet/placeholder words and all emails end in `@sis.example` (reserved TLD).
+NATO-alphabet/placeholder words and all emails end in `@technology-one-sm.example` (reserved TLD).
 
-## Application A — SIS (`http://sis:8000` in Docker, `http://localhost:8001` on the host)
+## Source — Technology One (SM) mock (`http://technology-one-sm:8000` in Docker, `http://localhost:8001` on the host)
 
 | Method | Path | Description |
 |---|---|---|
@@ -58,14 +58,14 @@ curl -X PATCH localhost:8001/api/courses/CRS-0001 \
   -d '{"title": "Renamed course"}'
 ```
 
-## Application B — LMS (`http://lms:8000` in Docker, `http://localhost:8002` on the host)
+## Target — EDW mock (`http://edw:8000` in Docker, `http://localhost:8002` on the host)
 
 | Method | Path | Description |
 |---|---|---|
 | PUT | `/api/{collection}/bulk` | idempotent bulk upsert (below) |
 | GET | `/api/{collection}` | `{"items": [...], "count": n}`; items carry the source fields plus `synced_at` |
 | GET | `/api/{collection}/{id}` | one record |
-| GET | `/health/live`, `/health/ready`, `/metrics` | as for SIS |
+| GET | `/health/live`, `/health/ready`, `/metrics` | as for Technology One (SM) |
 
 ### Bulk upsert
 
@@ -73,7 +73,7 @@ Request — every record must be complete (all fields of its shape, nothing extr
 
 ```json
 {"records": [{"student_id": "STU-0001", "first_name": "Alpha", "last_name": "Sample",
-              "email": "student0001@sis.example", "status": "active",
+              "email": "student0001@technology-one-sm.example", "status": "active",
               "updated_at": "2026-01-01T00:00:00+00:00"}]}
 ```
 
@@ -86,4 +86,4 @@ Response 200:
 Semantics: insert unknown IDs, overwrite known IDs whose data differs, leave identical rows
 untouched (`synced_at` unchanged). The whole batch is one transaction. Records missing from a
 payload are **not** deleted. Status values are accepted as free text (≤32 chars) so a richer source
-can be plugged in without changing the LMS.
+can be plugged in without changing the EDW mock.

@@ -61,7 +61,7 @@ def execute_run(config: Config) -> bool:
     result = {"outcome": "success", "records": 0, "error_type": None, "error_message": None,
               "failed_system": None, "operation": None, "http_status": None}
     try:
-        # A fresh client per run: no stale keep-alive connections survive an LMS restart.
+        # A fresh client per run: no stale keep-alive connections survive a target (EDW) restart.
         with httpx.Client(timeout=config.timeout_seconds) as client:
             summary = sync_once(client, config, on_attempt_failed=attempt_failed)
         result["records"] = summary["records"]
@@ -93,19 +93,19 @@ def execute_run(config: Config) -> bool:
     return success
 
 
-def wait_for_sis(config: Config, stop: threading.Event) -> None:
-    """Bounded wait for SIS readiness; the LMS is deliberately not awaited."""
-    deadline = time.monotonic() + config.sis_startup_wait_seconds
+def wait_for_source(config: Config, stop: threading.Event) -> None:
+    """Bounded wait for source (Technology One (SM)) readiness; the target (EDW) is deliberately not awaited."""
+    deadline = time.monotonic() + config.source_startup_wait_seconds
     while not stop.is_set() and time.monotonic() < deadline:
         try:
-            if httpx.get(f"{config.sis_base_url}/health/ready", timeout=config.timeout_seconds).status_code == 200:
+            if httpx.get(f"{config.source_base_url}/health/ready", timeout=config.timeout_seconds).status_code == 200:
                 emit(config, "info", "source_ready")
                 return
         except httpx.HTTPError:
             pass
         stop.wait(2)
     if not stop.is_set():
-        emit(config, "warning", "source_not_ready", error_message="SIS not ready; starting schedule anyway")
+        emit(config, "warning", "source_not_ready", error_message="Source not ready; starting schedule anyway")
 
 
 def run_forever(config: Config) -> None:
@@ -125,7 +125,7 @@ def run_forever(config: Config) -> None:
          timeout_seconds=config.timeout_seconds, max_retries=config.max_retries,
          metrics_port=config.metrics_port)
 
-    wait_for_sis(config, stop)
+    wait_for_source(config, stop)
     next_run = time.monotonic()
     while not stop.wait(max(0.0, next_run - time.monotonic())):
         execute_run(config)

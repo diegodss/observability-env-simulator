@@ -5,6 +5,12 @@
 **Scope:** Application A, Application B, and three independent scheduled integrations only
 
 > Converted from `education_integration_poc_requirements.docx`. Wording is unchanged; only the formatting is now Markdown.
+>
+> **Naming note:** this specification uses the original mock names (`sis`, `lms`, `sync-students`,
+> `sync-staff`, `sync-courses`, labels `source=sis`, `target=lms`). The environment has since been
+> renamed after the real systems: `technology-one-sm`, `edw`, `appevents-student`, `appevents-general`,
+> `appevents-curriculum`, with labels `source=technology-one-sm`, `target=edw`. The requirements
+> themselves are unchanged. See the main [README](../../README.md) for the mapping.
 
 ## 1. Objective
 

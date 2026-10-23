@@ -1,4 +1,4 @@
-"""Infrastructure shared by the SIS endpoints: config, logging, DB pool,
+"""Infrastructure shared by the EDW mock endpoints: config, logging, DB pool,
 migrations, error envelope, auth and HTTP/Prometheus instrumentation."""
 
 import json
@@ -20,7 +20,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-APP_NAME = os.getenv("APP_NAME", "sis")
+APP_NAME = os.getenv("APP_NAME", "edw")
 DATABASE_URL = os.environ["DATABASE_URL"]
 API_TOKEN = os.getenv("API_TOKEN", "")
 DB_CONNECT_ATTEMPTS = int(os.getenv("DB_CONNECT_ATTEMPTS", "30"))

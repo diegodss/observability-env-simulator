@@ -48,3 +48,28 @@ Memory in steady state: about 240 MiB in total across the 7 containers.
   kept as counters and logs.
 - This setup is not hardened for production: it uses a shared static token, development database
   passwords, and ports bound to localhost only.
+
+## Later changes (after this summary)
+
+This summary records the first build and its test run. The environment has changed since:
+
+- **Renamed after the real systems** the mocks stand in for:
+
+  | Then | Now |
+  |---|---|
+  | `sis` | `technology-one-sm` |
+  | `lms` | `edw` |
+  | `sync-students` | `appevents-student` |
+  | `sync-staff` | `appevents-general` |
+  | `sync-courses` | `appevents-curriculum` |
+
+  - Folders, environment variables, metric label values (`integration=student|curriculum|general`,
+    `source=technology-one-sm`, `target=edw`), scripts and tests were renamed to match.
+  - `lms_bulk_upsert_records_total` is now `edw_bulk_upsert_records_total`.
+- **Optional Prometheus + Grafana profile** (`docker compose --profile observability up -d`): a
+  provisioned dashboard and alert rules.
+- **Jira Assets model** for alert enrichment (`docs/jira-assets/`) and incident ticket templates
+  (`docs/incident-templates.md`).
+
+See the README for current commands.
+
