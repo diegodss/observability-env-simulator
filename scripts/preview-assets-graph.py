@@ -6,7 +6,8 @@ spec and numbered import files. Checks each import file against its spec the
 way the import would see it: unknown columns, missing required values,
 duplicate unique values, Select/Status values outside their options, Float/
 Integer/Date/URL values that don't parse, and object references (including
-across schemas) to objects that don't exist or are imported later.
+across schemas) to objects that don't exist or are imported later. Optional
+object types (Connector) may have no import file at all.
 
     python3 scripts/preview-assets-graph.py          # checks + text tree
     python3 scripts/preview-assets-graph.py --json   # nodes/edges as JSON
@@ -25,8 +26,9 @@ from pathlib import Path
 DOCS = Path(__file__).resolve().parents[1] / "docs" / "jira-assets"
 SCHEMAS = [  # import order: referenced schemas and types come first
     ("Applications", "applications-schema", [("Application", "01-applications.csv")]),
-    ("Integrations", "integrations-schema", [("Integration", "01-integrations.csv")]),
+    ("Integrations", "integrations-schema", [("Connector", "01-connectors.csv"), ("Integration", "02-integrations.csv")]),
 ]
+OPTIONAL_TYPES = {"Connector"}  # an absent import file means "not used", not an error
 MULTI_SEPARATOR = "|"
 
 
@@ -66,6 +68,11 @@ def main() -> int:
         for object_type, filename in types:
             key, label = (schema, object_type), f"{folder}/{filename}"
             spec[key] = attributes = definitions[object_type]
+            if not (DOCS / folder / filename).exists():
+                if object_type not in OPTIONAL_TYPES:
+                    problems.append(f"{label}: import file is missing")
+                objects[key] = {}
+                continue
             rows = read(DOCS / folder / filename)
             objects[key] = {row["Name"]: row for row in rows}
             columns = list(rows[0].keys()) if rows else []
@@ -125,9 +132,9 @@ def main() -> int:
                 print(f"    --{edge['reference']}--> {edge['to']}  ({edge['attribute']}, {edge['to_schema']})")
             inbound = defaultdict(list)
             for edge in (e for e in edges if e["to"] == name and e["to_type"] == object_type):
-                inbound[edge["reference"]].append(edge["from"])
-            for reference, sources in inbound.items():
-                print(f"    <--{reference}-- {len(sources)} Integration(s)")
+                inbound[(edge["reference"], edge["from_type"])].append(edge["from"])
+            for (reference, from_type), sources in inbound.items():
+                print(f"    <--{reference}-- {len(sources)} {from_type}(s)")
     print()
     for problem in problems:
         print(f"PROBLEM: {problem}")

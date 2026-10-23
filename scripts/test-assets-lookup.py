@@ -11,7 +11,9 @@ It checks that:
      with the expected Resolver Group, Status and (for integrations) Source/Target System,
   2. the blast-radius query (integrations whose Target System is X) is complete,
   3. every ci_name in prometheus.yml resolves to a CI, and the alerts of an outage
-     of job=lms all resolve to the same root CI, whose Resolver Group gets the ticket.
+     of job=lms all resolve to the same root CI, whose Resolver Group gets the ticket,
+  4. if Connector objects are in use (integrations-schema/01-connectors.csv exists):
+     each connector is found, linked to the right integrations, and can act as root CI.
 
 Configuration (environment variables, or a .env file in the repo root):
   JIRA_SITE                  https://<your-site>.atlassian.net
@@ -168,6 +170,10 @@ def first(obj: dict, attribute: str) -> str:
     return values[0] if values else ""
 
 
+def split(value: str) -> list[str]:
+    return sorted(v.strip() for v in value.split("|") if v.strip())
+
+
 def ci_names() -> dict[str, str]:
     """job -> ci_name, from the Prometheus scrape config the alerts come from."""
     text = (ROOT / "observability" / "prometheus" / "prometheus.yml").read_text()
@@ -176,10 +182,13 @@ def ci_names() -> dict[str, str]:
 
 def main() -> int:
     load_dotenv()
+    integration_schema = os.getenv("ASSETS_INTEGRATION_SCHEMA", "Integrations")
     schemas = {"Application": os.getenv("ASSETS_APPLICATION_SCHEMA", "Applications"),
-               "Integration": os.getenv("ASSETS_INTEGRATION_SCHEMA", "Integrations")}
-    expected = {"Application": read_csv("applications-schema/01-applications.csv"),
-                "Integration": read_csv("integrations-schema/01-integrations.csv")}
+               "Connector": integration_schema, "Integration": integration_schema}
+    expected = {"Application": read_csv("applications-schema/01-applications.csv")}
+    if (CSV_DIR / "integrations-schema" / "01-connectors.csv").exists():  # connectors are optional
+        expected["Connector"] = read_csv("integrations-schema/01-connectors.csv")
+    expected["Integration"] = read_csv("integrations-schema/02-integrations.csv")
     assets = Assets()
     report = Report()
     found: dict[str, dict] = {}
@@ -196,16 +205,25 @@ def main() -> int:
             if not report.check(len(results) == 1, f"{object_type} '{name}'", f"{len(results)} objects found"):
                 continue
             obj = found[name] = results[0]
-            checks = ["Resolver Group", "Status"] + (["Source System", "Target System"] if object_type == "Integration" else [])
+            checks = ["Resolver Group", "Status"] + {"Integration": ["Source System", "Target System"],
+                                                      "Connector": ["Connects To"]}.get(object_type, [])
             for attribute in checks:
                 actual = first(obj, attribute)
                 report.check(actual == row[attribute], f"    {attribute}", f"expected {row[attribute]!r}, got {actual!r}")
+            if object_type == "Integration" and "Connector" in expected:
+                got, want = sorted(obj["attrs"].get("Connector CIs", [])), split(row["Connector CIs"])
+                report.check(got == want, "    Connector CIs", f"{len(got)} linked")
 
     print("\n2. Blast radius (integrations writing to each application)")
     for app in expected["Application"]:
         want = sorted(i["Name"] for i in expected["Integration"] if i["Target System"] == app["Name"])
         got = sorted(o["label"] for o in assets.aql(f'{scope("Integration")} AND "Target System" = {quote(app["Name"])}'))
         report.check(got == want, f"Target System = {app['Name']}", f"{len(got)} integrations")
+
+    for connector in expected.get("Connector", []):
+        want = sorted(i["Name"] for i in expected["Integration"] if connector["Name"] in split(i["Connector CIs"]))
+        got = sorted(o["label"] for o in assets.aql(f'{scope("Integration")} AND "Connector CIs" = {quote(connector["Name"])}'))
+        report.check(got == want, f"Connector CIs = {connector['Name']}", f"{len(got)} integrations")
 
     print("\n3. Alert ci_name -> root CI -> resolver group")
     labels = ci_names()
@@ -224,6 +242,16 @@ def main() -> int:
         root = found.get(next(iter(roots.values())))
         group = first(root, "Resolver Group") if root else ""
         report.check(bool(group), "root CI has a Resolver Group to route the ticket to", group)
+
+    if expected.get("Connector"):
+        print("\n4. Connector as root CI (heartbeat failing, connected application healthy)")
+        for connector in expected["Connector"]:
+            obj = found.get(connector["Name"])
+            if not obj:
+                continue
+            users = [i["Name"] for i in expected["Integration"] if connector["Name"] in split(i["Connector CIs"])]
+            print(f"      {connector['Name']}: {len(users)} integrations grouped, connects to {first(obj, 'Connects To') or '-'}")
+            report.check(bool(first(obj, "Resolver Group")), f"    routes to its Resolver Group", first(obj, "Resolver Group"))
 
     print(f"\n{'All checks passed' if not report.failures else f'{report.failures} check(s) failed'}")
     return 0 if not report.failures else 1
