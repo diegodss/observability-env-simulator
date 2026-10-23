@@ -1,0 +1,3 @@
+Name,Monitoring Job,Owner Team,Business Service,Runbook URL,Health URL,Environment,Criticality
+Technology One (SM),sis,Current Students,Student Administration / Core Data,https://github.com/diegodss/observability-env-simulator#5-isolation-optional,http://localhost:8001/health/ready,POC,Tier 2
+EDW,lms,Data Squad,Student Administration / Core Data,https://github.com/diegodss/observability-env-simulator#3-recovery,http://localhost:8002/health/ready,POC,Tier 2

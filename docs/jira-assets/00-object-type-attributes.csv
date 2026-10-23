@@ -1,0 +1,29 @@
+Object Type,Attribute,Attribute Type,Reference Type,Referenced Object Type,Unique,Required,Example
+Team,Name,Text (label),,,Yes,Yes,Data Squad
+Team,Email,Email,,,No,No,data-squad@example.com
+Team,Assignment Group,Text,,,No,No,data-squad-support
+Team,On-call Contact,User,,,No,No,(set in UI)
+Business Service,Name,Text (label),,,Yes,Yes,Student Administration / Core Data
+Business Service,Domain,Text,,,No,Yes,Current Students
+Business Service,Criticality,Select (Tier 1|Tier 2|Tier 3),,,No,Yes,Tier 2
+Business Service,Owner Team,Object,Owned by,Team,No,Yes,Current Students
+Business Service,Description,Textarea,,,No,No,Core student administration data
+Application,Name,Text (label),,,Yes,Yes,EDW
+Application,Monitoring Job,Text,,,Yes,Yes,lms
+Application,Owner Team,Object,Owned by,Team,No,Yes,Data Squad
+Application,Business Service,Object,Part of,Business Service,No,Yes,Student Administration / Core Data
+Application,Runbook URL,URL,,,No,No,https://github.com/diegodss/observability-env-simulator#3-recovery
+Application,Health URL,URL,,,No,No,http://localhost:8002/health/ready
+Application,Environment,Select (POC|Test|Production),,,No,Yes,POC
+Application,Criticality,Select (Tier 1|Tier 2|Tier 3),,,No,Yes,Tier 2
+Integration,Name,Text (label),,,Yes,Yes,ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student
+Integration,Monitoring Job,Text,,,Yes,Yes,sync-students
+Integration,Integration Key,Text,,,No,Yes,students
+Integration,Description,Textarea,,,No,No,Synchronises real-time changes to student profiles...
+Integration,Source Application,Object,Reads from,Application,No,Yes,Technology One (SM)
+Integration,Target Application,Object,Writes to,Application,No,Yes,EDW
+Integration,Owner Team,Object,Owned by,Team,No,Yes,Current Students
+Integration,Business Service,Object,Part of,Business Service,No,Yes,Student Administration / Core Data
+Integration,Schedule,Text,,,No,No,Every 30 seconds
+Integration,Runbook URL,URL,,,No,No,https://github.com/diegodss/observability-env-simulator#2-primary-outage--stop-the-lms
+Integration,Environment,Select (POC|Test|Production),,,No,Yes,POC
