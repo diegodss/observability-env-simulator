@@ -1,0 +1,165 @@
+# Docker Swarm stack: observability-env-simulator
+#
+# Pré-requisitos (uma vez só, em um manager):
+#   docker network create -d overlay --attachable observability-sim   # mesma rede do stack da plataforma
+#   docker node update --label-add obs=true <NOME_DO_NODE>
+#
+# O Swarm NÃO faz build (a chave "build:" é ignorada). Construa as imagens antes,
+# a partir da raiz do projeto, no node com a label obs=true:
+#   docker build -t observability-env-simulator/technology-one-sm:local ./app-technology-one-sm
+#   docker build -t observability-env-simulator/edw:local ./app-edw
+#   docker build -t observability-env-simulator/appevents-worker:local ./integrations
+# (com mais de um node, publique as imagens em um registry e troque as tags abaixo)
+#
+# Deploy (a partir da pasta docker-swarm):
+#   cd docker-swarm && docker stack deploy -c simulator-stack.yml simulator
+#
+# Para sobrescrever valores: o "docker stack deploy" NÃO lê o .env sozinho. Use:
+#   set -a; source ../.env; set +a
+#   docker stack deploy -c simulator-stack.yml simulator
+#
+# Para derrubar/subir só o edw (simula indisponibilidade), no Swarm:
+#   docker service scale simulator_edw=0
+#   docker service scale simulator_edw=1
+
+x-deploy: &deploy
+  replicas: 1
+  restart_policy:
+    condition: any
+    delay: 5s
+  placement:
+    constraints:
+      - node.labels.obs == true
+
+x-appevents-worker: &appevents-worker
+  image: observability-env-simulator/appevents-worker:local
+  stop_grace_period: 10s
+  networks:
+    - observability-sim
+  # Sem dependência do edw: os workers precisam subir e continuar rodando com ele fora.
+  # Sem depends_on no Swarm: se technology-one-sm ainda não responder,
+  # o worker espera (SOURCE_STARTUP_WAIT_SECONDS) ou reinicia pela restart_policy.
+  deploy: *deploy
+
+x-appevents-env: &appevents-env
+  SOURCE_BASE_URL: ${SOURCE_BASE_URL:-http://technology-one-sm:8000}
+  TARGET_BASE_URL: ${TARGET_BASE_URL:-http://edw:8000}
+  API_TOKEN: ${API_TOKEN:-dev-poc-token}
+  SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-30}
+  HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-5}
+  HTTP_MAX_RETRIES: ${HTTP_MAX_RETRIES:-1}
+  HTTP_RETRY_BACKOFF_SECONDS: ${HTTP_RETRY_BACKOFF_SECONDS:-1}
+  SOURCE_STARTUP_WAIT_SECONDS: ${SOURCE_STARTUP_WAIT_SECONDS:-60}
+  METRICS_PORT: "9100"
+  PROMETHEUS_DISABLE_CREATED_SERIES: "true"
+
+services:
+  technology-one-sm-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${SOURCE_DB_NAME:-technology_one_sm}
+      POSTGRES_USER: ${SOURCE_DB_USER:-technology_one_sm}
+      POSTGRES_PASSWORD: ${SOURCE_DB_PASSWORD:-source-dev-password}
+    volumes:
+      - technology-one-sm-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - observability-sim
+    deploy: *deploy
+
+  edw-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${TARGET_DB_NAME:-edw}
+      POSTGRES_USER: ${TARGET_DB_USER:-edw}
+      POSTGRES_PASSWORD: ${TARGET_DB_PASSWORD:-target-dev-password}
+    volumes:
+      - edw-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - observability-sim
+    deploy: *deploy
+
+  technology-one-sm:
+    image: observability-env-simulator/technology-one-sm:local
+    environment:
+      APP_NAME: technology-one-sm
+      DATABASE_URL: postgresql://${SOURCE_DB_USER:-technology_one_sm}:${SOURCE_DB_PASSWORD:-source-dev-password}@technology-one-sm-db:5432/${SOURCE_DB_NAME:-technology_one_sm}
+      API_TOKEN: ${API_TOKEN:-dev-poc-token}
+      PROMETHEUS_DISABLE_CREATED_SERIES: "true"
+    ports:
+      - target: 8000
+        published: ${SOURCE_HOST_PORT:-8001}
+        protocol: tcp
+        mode: ingress
+    networks:
+      - observability-sim
+    deploy: *deploy
+
+  edw:
+    image: observability-env-simulator/edw:local
+    environment:
+      APP_NAME: edw
+      DATABASE_URL: postgresql://${TARGET_DB_USER:-edw}:${TARGET_DB_PASSWORD:-target-dev-password}@edw-db:5432/${TARGET_DB_NAME:-edw}
+      API_TOKEN: ${API_TOKEN:-dev-poc-token}
+      PROMETHEUS_DISABLE_CREATED_SERIES: "true"
+    ports:
+      - target: 8000
+        published: ${TARGET_HOST_PORT:-8002}
+        protocol: tcp
+        mode: ingress
+    networks:
+      - observability-sim
+    deploy: *deploy
+
+  appevents-student:
+    <<: *appevents-worker
+    environment:
+      <<: *appevents-env
+      INTEGRATION: student
+    ports:
+      - target: 9100
+        published: ${APPEVENTS_STUDENT_METRICS_PORT:-9101}
+        protocol: tcp
+        mode: ingress
+
+  appevents-general:
+    <<: *appevents-worker
+    environment:
+      <<: *appevents-env
+      INTEGRATION: general
+    ports:
+      - target: 9100
+        published: ${APPEVENTS_GENERAL_METRICS_PORT:-9102}
+        protocol: tcp
+        mode: ingress
+
+  appevents-curriculum:
+    <<: *appevents-worker
+    environment:
+      <<: *appevents-env
+      INTEGRATION: curriculum
+    ports:
+      - target: 9100
+        published: ${APPEVENTS_CURRICULUM_METRICS_PORT:-9103}
+        protocol: tcp
+        mode: ingress
+
+volumes:
+  technology-one-sm-db-data:
+  edw-db-data:
+
+# Overlay compartilhada com o stack da plataforma, para o Prometheus alcançar
+# os serviços pelo nome (edw:8000, appevents-student:9100, ...).
+# Criada manualmente (ver topo) para qualquer um dos stacks poder subir primeiro.
+networks:
+  observability-sim:
+    external: true

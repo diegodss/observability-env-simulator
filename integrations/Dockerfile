@@ -7,9 +7,12 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY worker ./worker
-
+# 1. Cria o usuário ANTES de copiar o código do worker
 RUN useradd --system --uid 10001 appuser
+
+# 2. Copia o worker já dando a permissão para o appuser
+COPY --chown=appuser:appuser worker ./worker
+
 USER appuser
 
 EXPOSE 9100
