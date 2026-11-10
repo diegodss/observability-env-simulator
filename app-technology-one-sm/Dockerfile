@@ -7,9 +7,12 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
-
+# 1. Cria o usuário ANTES de copiar os arquivos do app
 RUN useradd --system --uid 10001 appuser
+
+# 2. Copia os arquivos já definindo o proprietário correto
+COPY --chown=appuser:appuser app ./app
+
 USER appuser
 
 EXPOSE 8000

@@ -9,13 +9,13 @@ JSON logs.
 
 The mock services are named after the systems they stand in for:
 
-| Service | Stands in for | Jira Assets CI (`ci_name`) |
-|---|---|---|
-| **`technology-one-sm`** | Technology One (SM), the student management system (source) | Technology One (SM) |
-| **`edw`** | EDW, the enterprise data warehouse (target) | EDW |
-| **`appevents-student`** | Student AppEvents flow | ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student |
-| **`appevents-curriculum`** | Curriculum AppEvents flow | ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum |
-| **`appevents-general`** | General AppEvents flow (shared reference data) | ETL - DXMULTI-0001 : AppEvents from SMS to EDW |
+| Service                    | Stands in for                                               | Jira Assets CI (`ci_name`)                                  |
+| -------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
+| **`technology-one-sm`**    | Technology One (SM), the student management system (source) | Technology One (SM)                                         |
+| **`edw`**                  | EDW, the enterprise data warehouse (target)                 | EDW                                                         |
+| **`appevents-student`**    | Student AppEvents flow                                      | ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Student    |
+| **`appevents-curriculum`** | Curriculum AppEvents flow                                   | ETL - DXMULTI-0001 : AppEvents from SMS to EDW - Curriculum |
+| **`appevents-general`**    | General AppEvents flow (shared reference data)              | ETL - DXMULTI-0001 : AppEvents from SMS to EDW              |
 
 The mocks hold synthetic data:
 - students, staff and courses, in `technology-one-sm`;
@@ -58,6 +58,10 @@ observability-platform/        Prometheus, Grafana, alerting, correlation (where
    declare the same Docker network, `observability-sim`, so the platform's Prometheus scrapes these
    services by name (`edw:8000`, `appevents-student:9100`, …).
 2. **Break things here** (`docker compose stop edw`, …) and watch the platform react.
+
+> **Prefer Docker Swarm?** Both repos also ship Swarm stack files (in `docker-swarm/`). See
+> [How to run: Compose or Swarm](docker-swarm/README-execution.md) for the prerequisites, deploy commands and
+> how to switch between modes. Use one mode at a time.
 
 Each repo starts, stops and resets on its own, in any order:
 - whichever stack starts second logs a harmless warning that the network "was not created for
@@ -103,14 +107,14 @@ Integrations
 
 ## Services and ports
 
-| Service | Host URL | In-network | Purpose |
-|---|---|---|---|
-| `technology-one-sm` | http://localhost:8001 | `http://technology-one-sm:8000` | Source API (`/docs` for OpenAPI UI) |
-| `edw` | http://localhost:8002 | `http://edw:8000` | Target API (`/docs` for OpenAPI UI) |
-| `appevents-student` | http://localhost:9101/metrics | `appevents-student:9100` | Student flow worker metrics |
-| `appevents-general` | http://localhost:9102/metrics | `appevents-general:9100` | General flow worker metrics |
-| `appevents-curriculum` | http://localhost:9103/metrics | `appevents-curriculum:9100` | Curriculum flow worker metrics |
-| `technology-one-sm-db`, `edw-db` | – (not exposed) | `:5432` | One PostgreSQL 16 per application |
+| Service                          | Host URL                      | In-network                      | Purpose                             |
+| -------------------------------- | ----------------------------- | ------------------------------- | ----------------------------------- |
+| `technology-one-sm`              | http://localhost:8001         | `http://technology-one-sm:8000` | Source API (`/docs` for OpenAPI UI) |
+| `edw`                            | http://localhost:8002         | `http://edw:8000`               | Target API (`/docs` for OpenAPI UI) |
+| `appevents-student`              | http://localhost:9101/metrics | `appevents-student:9100`        | Student flow worker metrics         |
+| `appevents-general`              | http://localhost:9102/metrics | `appevents-general:9100`        | General flow worker metrics         |
+| `appevents-curriculum`           | http://localhost:9103/metrics | `appevents-curriculum:9100`     | Curriculum flow worker metrics      |
+| `technology-one-sm-db`, `edw-db` | – (not exposed)               | `:5432`                         | One PostgreSQL 16 per application   |
 
 All services are on the Docker network `observability-sim`, which the platform shares.
 
@@ -191,11 +195,11 @@ as in Technology One (SM). The run log shows `"upsert": {"inserted": 0, "updated
 
 ### 5. Isolation (optional)
 
-| Command | Behaviour |
-|---|---|
-| `docker compose stop appevents-student` | The general and curriculum flows keep syncing on schedule, and the student worker's metrics endpoint disappears (scrape `up=0`). `docker compose start appevents-student` restores it. |
-| `docker compose stop technology-one-sm` | All three flows fail with `error_type=source_connection_error`, `failed_system=technology-one-sm`. EDW stays healthy and keeps its data. Workers keep running and recover after `docker compose start technology-one-sm`. |
-| `docker compose run --rm --no-deps appevents-general --once` | One ad-hoc general-flow run; exit code 0 on success, 1 on failure (used by tests). |
+| Command                                                      | Behaviour                                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docker compose stop appevents-student`                      | The general and curriculum flows keep syncing on schedule, and the student worker's metrics endpoint disappears (scrape `up=0`). `docker compose start appevents-student` restores it.                                    |
+| `docker compose stop technology-one-sm`                      | All three flows fail with `error_type=source_connection_error`, `failed_system=technology-one-sm`. EDW stays healthy and keeps its data. Workers keep running and recover after `docker compose start technology-one-sm`. |
+| `docker compose run --rm --no-deps appevents-general --once` | One ad-hoc general-flow run; exit code 0 on success, 1 on failure (used by tests).                                                                                                                                        |
 
 ### 6. Reset (destroys all POC data)
 
@@ -213,17 +217,17 @@ docker compose down -v && docker compose up --build -d
 
 All settings have defaults in `compose.yaml`; override them in `.env` (see `.env.example`).
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `SYNC_INTERVAL_SECONDS` | 30 | schedule period for each worker (fixed rate, first run on startup) |
-| `HTTP_TIMEOUT_SECONDS` | 5 | per-request timeout |
-| `HTTP_MAX_RETRIES` | 1 | retries per request after the first attempt |
-| `HTTP_RETRY_BACKOFF_SECONDS` | 1 | backoff × attempt number |
-| `SOURCE_STARTUP_WAIT_SECONDS` | 60 | bounded wait for source (Technology One (SM)) readiness before the first run |
-| `SOURCE_BASE_URL` / `TARGET_BASE_URL` | `http://technology-one-sm:8000` / `http://edw:8000` | Docker DNS names |
-| `API_TOKEN` | `dev-poc-token` | bearer token for write endpoints (empty disables) |
-| `SOURCE_DB_*` / `TARGET_DB_*` | dev values | database names/users/passwords |
-| `SOURCE_HOST_PORT`, `TARGET_HOST_PORT`, `APPEVENTS_*_METRICS_PORT` | 8001, 8002, 9101–9103 | host ports |
+| Variable                                                           | Default                                             | Meaning                                                                      |
+| ------------------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `SYNC_INTERVAL_SECONDS`                                            | 30                                                  | schedule period for each worker (fixed rate, first run on startup)           |
+| `HTTP_TIMEOUT_SECONDS`                                             | 5                                                   | per-request timeout                                                          |
+| `HTTP_MAX_RETRIES`                                                 | 1                                                   | retries per request after the first attempt                                  |
+| `HTTP_RETRY_BACKOFF_SECONDS`                                       | 1                                                   | backoff × attempt number                                                     |
+| `SOURCE_STARTUP_WAIT_SECONDS`                                      | 60                                                  | bounded wait for source (Technology One (SM)) readiness before the first run |
+| `SOURCE_BASE_URL` / `TARGET_BASE_URL`                              | `http://technology-one-sm:8000` / `http://edw:8000` | Docker DNS names                                                             |
+| `API_TOKEN`                                                        | `dev-poc-token`                                     | bearer token for write endpoints (empty disables)                            |
+| `SOURCE_DB_*` / `TARGET_DB_*`                                      | dev values                                          | database names/users/passwords                                               |
+| `SOURCE_HOST_PORT`, `TARGET_HOST_PORT`, `APPEVENTS_*_METRICS_PORT` | 8001, 8002, 9101–9103                               | host ports                                                                   |
 
 Worst-case detection time = 2 × interval + 2 × (2 attempts × timeout + backoff) ≈ 82 s with defaults.
 
@@ -245,20 +249,20 @@ environment is left running even when a test fails:
 If you changed `SYNC_INTERVAL_SECONDS` (etc.) in `.env`, export it too so the test deadlines match.
 `scripts/run-tests.sh` does this automatically.
 
-| ID | Covered by |
-|---|---|
-| AT-01 | `test_01_baseline::test_at01_all_services_operational` |
-| AT-02 | `test_01_baseline::test_at02_seed_data_minimums` |
-| AT-03 | `test_01_baseline::test_at03_initial_sync_replicates_every_collection` |
-| AT-04 | `test_01_baseline::test_at04_repeated_syncs_are_idempotent` |
-| AT-05 | `test_02_edw_outage_recovery::test_at05_only_edw_is_down` |
-| AT-06 | `test_02_edw_outage_recovery::test_at06_each_integration_fails_independently` |
-| AT-07 | `test_02_edw_outage_recovery::test_at07_failed_run_logs_identify_the_target` |
-| AT-08 | `test_02_edw_outage_recovery::test_at08_automatic_recovery_without_worker_restarts` |
-| AT-09 | `test_01_baseline::test_at09_source_changes_propagate` |
-| AT-10 | `test_01_baseline::test_at10_…` and `test_02_edw_outage_recovery::test_at10_metrics_scrapeable_while_edw_down` |
-| AT-11 | `test_03_isolation::test_at11_one_worker_down_does_not_affect_the_others` |
-| AT-12 | this README + `scripts/run-tests.sh` |
+| ID    | Covered by                                                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AT-01 | `test_01_baseline::test_at01_all_services_operational`                                                                                                                                      |
+| AT-02 | `test_01_baseline::test_at02_seed_data_minimums`                                                                                                                                            |
+| AT-03 | `test_01_baseline::test_at03_initial_sync_replicates_every_collection`                                                                                                                      |
+| AT-04 | `test_01_baseline::test_at04_repeated_syncs_are_idempotent`                                                                                                                                 |
+| AT-05 | `test_02_edw_outage_recovery::test_at05_only_edw_is_down`                                                                                                                                   |
+| AT-06 | `test_02_edw_outage_recovery::test_at06_each_integration_fails_independently`                                                                                                               |
+| AT-07 | `test_02_edw_outage_recovery::test_at07_failed_run_logs_identify_the_target`                                                                                                                |
+| AT-08 | `test_02_edw_outage_recovery::test_at08_automatic_recovery_without_worker_restarts`                                                                                                         |
+| AT-09 | `test_01_baseline::test_at09_source_changes_propagate`                                                                                                                                      |
+| AT-10 | `test_01_baseline::test_at10_…` and `test_02_edw_outage_recovery::test_at10_metrics_scrapeable_while_edw_down`                                                                              |
+| AT-11 | `test_03_isolation::test_at11_one_worker_down_does_not_affect_the_others`                                                                                                                   |
+| AT-12 | this README + `scripts/run-tests.sh`                                                                                                                                                        |
 | extra | `test_01_baseline::test_run_once_mode_exit_codes`, `test_03_isolation::test_source_outage_is_classified_as_source_failure`, `tests/unit/test_sync.py` (classification, retries, log fields) |
 
 ## Repository layout

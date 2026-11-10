@@ -69,7 +69,7 @@ services:
       API_TOKEN: ${API_TOKEN:-dev-poc-token}
       PROMETHEUS_DISABLE_CREATED_SERIES: "true"
     ports:
-      - "127.0.0.1:${SOURCE_HOST_PORT:-8001}:8000"
+      - "0.0.0.0:${SOURCE_HOST_PORT:-8001}:8000"
 
   edw:
     build: ./app-edw
@@ -86,7 +86,7 @@ services:
       API_TOKEN: ${API_TOKEN:-dev-poc-token}
       PROMETHEUS_DISABLE_CREATED_SERIES: "true"
     ports:
-      - "127.0.0.1:${TARGET_HOST_PORT:-8002}:8000"
+      - "0.0.0.0:${TARGET_HOST_PORT:-8002}:8000"
 
   appevents-student:
     <<: *appevents-worker
@@ -94,7 +94,7 @@ services:
       <<: *appevents-env
       INTEGRATION: student
     ports:
-      - "127.0.0.1:${APPEVENTS_STUDENT_METRICS_PORT:-9101}:9100"
+      - "0.0.0.0:${APPEVENTS_STUDENT_METRICS_PORT:-9101}:9100"
 
   appevents-general:
     <<: *appevents-worker
@@ -102,7 +102,7 @@ services:
       <<: *appevents-env
       INTEGRATION: general
     ports:
-      - "127.0.0.1:${APPEVENTS_GENERAL_METRICS_PORT:-9102}:9100"
+      - "0.0.0.0:${APPEVENTS_GENERAL_METRICS_PORT:-9102}:9100"
 
   appevents-curriculum:
     <<: *appevents-worker
@@ -110,7 +110,7 @@ services:
       <<: *appevents-env
       INTEGRATION: curriculum
     ports:
-      - "127.0.0.1:${APPEVENTS_CURRICULUM_METRICS_PORT:-9103}:9100"
+      - "0.0.0.0:${APPEVENTS_CURRICULUM_METRICS_PORT:-9103}:9100"
 
 volumes:
   technology-one-sm-db-data:
